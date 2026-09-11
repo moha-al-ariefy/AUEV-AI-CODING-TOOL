@@ -1,9 +1,13 @@
 {
   "name": "auev",
-  "displayName": "AUEV - AI Unified Editor Vision",
-  "description": "Security-First AI development suite with toggleable Smart Ghost Text, local secret tripwires, OWASP audit, and BYOK multi-provider intelligence.",
-  "version": "0.6.0",
+  "displayName": "AUEV - AI Coding Tool",
+  "description": "Security-First AI development suite with OWASP SAST, STRIDE Threat Modeling, Supply Chain CVE Auditor, Input Contract Shield, and toggleable Smart Ghost Text.",
+  "version": "0.7.0",
   "publisher": "moha-al-ariefy",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moha-al-ariefy/AUEV-AI-CODING-TOOL"
+  },
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.85.0"
@@ -17,14 +21,16 @@
   ],
   "keywords": [
     "auev",
-    "ghost text",
     "security",
-    "copilot",
+    "stride",
+    "threat modeling",
+    "ghost text",
     "owasp",
+    "supply chain",
     "ai completion",
     "openai",
     "claude",
-    "groq"
+    "deepseek"
   ],
   "activationEvents": [
     "onLanguage:*",
@@ -64,7 +70,22 @@
       },
       {
         "command": "auev.auditFile",
-        "title": "AUEV: Run Security Audit (OWASP Top 10)",
+        "title": "AUEV: SAST Security Audit & Scorecard",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.threatModel",
+        "title": "AUEV: STRIDE Threat Modeling",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.supplyChainAudit",
+        "title": "AUEV: Supply Chain & Dependency Audit",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.inputShield",
+        "title": "AUEV: Input Validation & Contract Shield",
         "category": "AUEV"
       },
       {
@@ -88,6 +109,11 @@
         "category": "AUEV"
       },
       {
+        "command": "auev.addModel",
+        "title": "AUEV: Add Custom Model",
+        "category": "AUEV"
+      },
+      {
         "command": "auev.toggleGhost",
         "title": "AUEV: Toggle Ghost Text On/Off",
         "category": "AUEV"
@@ -105,6 +131,11 @@
         "mac": "cmd+alt+s"
       },
       {
+        "command": "auev.threatModel",
+        "key": "ctrl+alt+t",
+        "mac": "cmd+alt+t"
+      },
+      {
         "command": "auev.openChat",
         "key": "ctrl+alt+a",
         "mac": "cmd+alt+a"
@@ -117,23 +148,35 @@
           "group": "auev@1"
         },
         {
+          "command": "auev.threatModel",
+          "group": "auev@2"
+        },
+        {
+          "command": "auev.supplyChainAudit",
+          "group": "auev@3"
+        },
+        {
+          "command": "auev.inputShield",
+          "group": "auev@4"
+        },
+        {
           "command": "auev.explainCode",
-          "group": "auev@2",
+          "group": "auev@5",
           "when": "editorHasSelection"
         },
         {
           "command": "auev.refactorCode",
-          "group": "auev@3",
+          "group": "auev@6",
           "when": "editorHasSelection"
         },
         {
           "command": "auev.generateTests",
-          "group": "auev@4",
+          "group": "auev@7",
           "when": "editorHasSelection"
         },
         {
           "command": "auev.sanitizeCode",
-          "group": "auev@5"
+          "group": "auev@8"
         }
       ]
     },
@@ -148,7 +191,12 @@
         "auev.model": {
           "type": "string",
           "default": "gpt-4o",
-          "description": "Model identifier to use (e.g., gpt-4o, claude-3-5-sonnet-20240620, llama-3.3-70b-versatile)."
+          "description": "Model identifier to use (e.g., gpt-4o, claude-3-5-sonnet-20240620, deepseek/deepseek-r1, llama-3.3-70b-versatile)."
+        },
+        "auev.customModels": {
+          "type": "string",
+          "default": "deepseek/deepseek-r1,qwen/qwen-2.5-coder-32b,claude-3-5-haiku-20241022",
+          "description": "Comma-separated list of custom models to display in the model selector."
         },
         "auev.customApiUrl": {
           "type": "string",

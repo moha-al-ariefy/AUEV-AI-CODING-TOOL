@@ -16,13 +16,22 @@
 
 <idea-plugin>
     <id>com.hackathon.aihelper</id>
-    <name>AUEV</name>
+    <name>AUEV AI Coding Tool</name>
     <vendor email="ma9802234@gmail.com">Solo Dev</vendor>
 
     <description><![CDATA[
-    Adds ghost text to your editor. It's like having a senior dev over your shoulder,
-    but without the judgment. <br>
-    <em>Powered by caffeine, anxiety, and Java 21.</em>
+    <b>AUEV AI Coding Tool</b> - Security-First pair programming suite for modern software engineering.<br><br>
+    <b>Core v0.7 Capabilities:</b>
+    <ul>
+        <li><b>🛡️ SAST Security Audit & Scorecard:</b> Automated OWASP Top 10 + CWE vulnerability scanning with remediation blocks.</li>
+        <li><b>🎯 STRIDE Threat Modeling:</b> Architectural threat boundary analysis and mitigation matrix.</li>
+        <li><b>📦 Supply Chain & CVE Auditor:</b> Dependency manifest analysis, unpinned package alerts, and safe pin recommendations.</li>
+        <li><b>🔒 Input Validation Shield:</b> Automated schema validation, defensive boundary assertions, and DTO contracts.</li>
+        <li><b>🧹 Secret Sanitizer & Crypto Upgrades:</b> Intercepts hardcoded credentials and automatically upgrades weak crypto.</li>
+        <li><b>🤖 Custom Model Registry:</b> Seamlessly choose from OpenAI, Anthropic, Groq, or register custom models (DeepSeek-R1, Qwen 2.5 Coder, Ollama, OpenRouter).</li>
+        <li><b>👻 Smart Ghost Text:</b> Low-latency inline completion with strict security tripwires.</li>
+    </ul>
+    <em>Code fast, don't get hacked.</em>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -35,7 +44,7 @@
                 parentId="tools"
                 instance="com.hackathon.aihelper.settings.AppSettingsConfigurable"
                 id="com.hackathon.aihelper.AppSettingsConfigurable"
-                displayName="AUEV"/>
+                displayName="AUEV AI Coding Tool"/>
 
         <toolWindow id="AI Assistant"
                     secondary="false"

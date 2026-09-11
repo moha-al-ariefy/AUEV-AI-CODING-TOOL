@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "com.hackathon"
-version = "0.6-BETA-2026" // 0.6 update finally done
+version = "0.7-2026"
 
 repositories {
     mavenCentral()
@@ -27,7 +27,7 @@ repositories {
 // Configuring the new Platform Plugin (It's pickier than the old one)
 intellijPlatform {
     pluginConfiguration {
-        name = "AUEV"
+        name = "AUEV AI Coding Tool"
     }
 
     // This is where we tell it to target 2025.3

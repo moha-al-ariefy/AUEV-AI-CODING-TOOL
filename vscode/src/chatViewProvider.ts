@@ -48,6 +48,20 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
           await vscode.workspace.getConfiguration("auev").update("model", data.model, vscode.ConfigurationTarget.Global);
           break;
         }
+        case "requestAddCustomModel": {
+          const newModel = await vscode.window.showInputBox({
+            prompt: "Enter custom model name (e.g., deepseek/deepseek-r1, qwen/qwen-2.5-coder-32b, ollama/codellama)",
+            placeHolder: "provider/model-id"
+          });
+          if (newModel && newModel.trim()) {
+            await AuevAiClient.addCustomModel(newModel.trim());
+            vscode.window.showInformationMessage(`AUEV: Custom model '${newModel.trim()}' added and selected.`);
+            if (this._view) {
+              this._view.webview.html = this._getHtmlForWebview(this._view.webview);
+            }
+          }
+          break;
+        }
       }
     });
   }
@@ -118,12 +132,24 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
 
     switch (action) {
       case "audit":
-        actionLabel = "🛡️ Security Audit";
+        actionLabel = "🛡️ SAST Security Audit";
         runner = () => AuevAiClient.runAudit(fileName, languageId, code);
         break;
-      case "explain":
-        actionLabel = "💡 Explain Code";
-        runner = () => AuevAiClient.runExplain(fileName, languageId, code);
+      case "threatModel":
+        actionLabel = "🎯 STRIDE Threat Modeling";
+        runner = () => AuevAiClient.runThreatModel(fileName, languageId, code);
+        break;
+      case "supplyChain":
+        actionLabel = "📦 Supply Chain & Dependency Audit";
+        runner = () => AuevAiClient.runSupplyChainAudit(fileName, languageId, code);
+        break;
+      case "inputShield":
+        actionLabel = "🔒 Input Validation & Contract Shield";
+        runner = () => AuevAiClient.runInputShield(fileName, languageId, code);
+        break;
+      case "sanitize":
+        actionLabel = "🧹 Sanitize Secrets";
+        runner = () => AuevAiClient.runSanitize(fileName, languageId, code);
         break;
       case "refactor":
         actionLabel = "⚡ Refactor Code";
@@ -133,9 +159,9 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
         actionLabel = "🧪 Generate Tests";
         runner = () => AuevAiClient.runGenerateTests(fileName, languageId, code);
         break;
-      case "sanitize":
-        actionLabel = "🔒 Sanitize Secrets";
-        runner = () => AuevAiClient.runSanitize(fileName, languageId, code);
+      case "explain":
+        actionLabel = "💡 Explain Code";
+        runner = () => AuevAiClient.runExplain(fileName, languageId, code);
         break;
       default:
         return;
@@ -217,6 +243,10 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
     const config = vscode.workspace.getConfiguration("auev");
     const currentModel = config.get<string>("model", "gpt-4o");
     const isParanoid = config.get<boolean>("paranoidMode", true);
+    const availableModels = AuevAiClient.getAvailableModels();
+    const modelOptionsHtml = availableModels.map(m =>
+      `<option value="${m}" ${currentModel === m ? "selected" : ""}>${m}</option>`
+    ).join("\n");
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -289,6 +319,21 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
       border-radius: 4px;
     }
     .icon-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .security-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 12px;
+      background: #161b22;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 600;
+      color: #81c784;
+    }
+    .version-tag {
+      color: #58a6ff;
+      font-weight: bold;
+    }
     .quick-actions {
       display: flex;
       gap: 6px;
@@ -438,6 +483,7 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
       font-size: 11px;
       outline: none;
       cursor: pointer;
+      max-width: 170px;
     }
     .send-btn {
       background: var(--accent);
@@ -474,30 +520,38 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
     </div>
   </div>
 
+  <div class="security-bar">
+    <span>🛡️ ${isParanoid ? "OWASP Top 10 • STRIDE • Heuristic Shields" : "Standard Dev Shield"}</span>
+    <span class="version-tag">v0.7</span>
+  </div>
+
   <div class="quick-actions">
-    <button class="action-pill" data-action="audit">🛡️ Audit</button>
-    <button class="action-pill" data-action="explain">💡 Explain</button>
-    <button class="action-pill" data-action="refactor">⚡ Refactor</button>
-    <button class="action-pill" data-action="tests">🧪 Tests</button>
-    <button class="action-pill" data-action="sanitize">🔒 Sanitize</button>
+    <button class="action-pill" data-action="audit" title="OWASP SAST Security Audit & Scorecard">🛡️ SAST Audit</button>
+    <button class="action-pill" data-action="threatModel" title="STRIDE Threat Modeling">🎯 STRIDE Threat</button>
+    <button class="action-pill" data-action="supplyChain" title="Dependency & CVE Audit">📦 Supply Chain</button>
+    <button class="action-pill" data-action="inputShield" title="Input Validation & Schema Contracts">🔒 Input Shield</button>
+    <button class="action-pill" data-action="sanitize" title="Sanitize Secrets & Crypto">🧹 Sanitize</button>
+    <button class="action-pill" data-action="refactor" title="Clean Code & Performance">⚡ Refactor</button>
+    <button class="action-pill" data-action="tests" title="Generate Unit Tests">🧪 Tests</button>
+    <button class="action-pill" data-action="explain" title="Architectural Breakdown">💡 Explain</button>
   </div>
 
   <div class="chat-history" id="chatHistory">
     <div class="message bot">
       <div class="author-tag">AUEV</div>
-      <div class="bubble">Hello! I am AUEV (AI Unified Editor Vision). Security-first pair programming activated. Ready to code safely.</div>
+      <div class="bubble">Hello! I am AUEV (AI Unified Editor Vision) v0.7. Security-first pair programming suite activated. Ready to build robust, secure software.</div>
     </div>
   </div>
 
   <div class="input-container">
     <div class="input-card">
-      <textarea id="promptInput" placeholder="Ask AUEV or run quick actions (Enter to send)..." rows="2"></textarea>
+      <textarea id="promptInput" placeholder="Ask AUEV or click security tools (Enter to send)..." rows="2"></textarea>
       <div class="input-toolbar">
         <select id="modelSelector">
-          <option value="gpt-4o" ${currentModel === "gpt-4o" ? "selected" : ""}>gpt-4o</option>
-          <option value="gpt-4o-mini" ${currentModel === "gpt-4o-mini" ? "selected" : ""}>gpt-4o-mini</option>
-          <option value="claude-3-5-sonnet-20240620" ${currentModel.includes("claude") ? "selected" : ""}>claude-3.5-sonnet</option>
-          <option value="llama-3.3-70b-versatile" ${currentModel.includes("llama") ? "selected" : ""}>llama-3.3-70b</option>
+          <optgroup label="Available Models">
+            ${modelOptionsHtml}
+          </optgroup>
+          <option value="__add_custom__">➕ Add Custom Model...</option>
         </select>
         <button class="send-btn" id="sendBtn">Send ⏎</button>
       </div>
@@ -621,7 +675,11 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
     };
 
     modelSelector.onchange = () => {
-      vscode.postMessage({ type: 'changeModel', model: modelSelector.value });
+      if (modelSelector.value === '__add_custom__') {
+        vscode.postMessage({ type: 'requestAddCustomModel' });
+      } else {
+        vscode.postMessage({ type: 'changeModel', model: modelSelector.value });
+      }
     };
 
     document.querySelectorAll('.action-pill').forEach(pill => {

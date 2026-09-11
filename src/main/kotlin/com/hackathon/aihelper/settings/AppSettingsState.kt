@@ -34,6 +34,7 @@ class AppSettingsState : PersistentStateComponent<AppSettingsState> {
     // Custom endpoint (Ollama, OpenRouter, Local LLM)
     var customApiUrl: String = ""
     var customModelName: String = ""
+    var customModels: String = "deepseek/deepseek-r1,qwen/qwen-2.5-coder-32b,claude-3-5-haiku-20241022"
 
     // I added this switch because sometimes the ghost gets too clingy
     var enableGhostText: Boolean = true
@@ -41,6 +42,41 @@ class AppSettingsState : PersistentStateComponent<AppSettingsState> {
     // Paranoid Mode: Strict OWASP & Security tripwires
     var paranoidMode: Boolean = true
     var chatFontSize: Int = 13
+
+    fun getAvailableModels(): List<String> {
+        val presets = listOf(
+            "gpt-4o",
+            "gpt-4o-mini",
+            "o1",
+            "claude-3-5-sonnet-20240620",
+            "claude-3-5-haiku-20241022",
+            "llama-3.3-70b-versatile",
+            "deepseek-chat",
+            "deepseek-reasoner"
+        )
+        val custom = customModels.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        return (presets + custom).distinct()
+    }
+
+    fun addCustomModel(newModel: String) {
+        val clean = newModel.trim()
+        if (clean.isBlank()) return
+        val current = customModels.split(",").map { it.trim() }.filter { it.isNotBlank() }.toMutableList()
+        if (!current.contains(clean)) {
+            current.add(clean)
+            customModels = current.joinToString(",")
+        }
+        modelName = clean
+    }
+
+    fun removeCustomModel(model: String) {
+        val clean = model.trim()
+        val current = customModels.split(",").map { it.trim() }.filter { it.isNotBlank() && it != clean }.toMutableList()
+        customModels = current.joinToString(",")
+        if (modelName == clean) {
+            modelName = "gpt-4o"
+        }
+    }
     companion object {
         fun getInstance(): AppSettingsState {
             return ApplicationManager.getApplication().getService(AppSettingsState::class.java)

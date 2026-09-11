@@ -130,6 +130,8 @@ fun ChatView(
     var selectedModel by remember { mutableStateOf(AppSettingsState.getInstance().modelName.ifBlank { "gpt-4o" }) }
     var isLoading by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("") }
+    var showAddModelDialog by remember { mutableStateOf(false) }
+    var newModelInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val isParanoid = AppSettingsState.getInstance().paranoidMode
 
@@ -192,6 +194,28 @@ fun ChatView(
             }
         }
 
+        // --- SECURITY STATUS SUB-BAR ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF161B22))
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (isParanoid) "🛡️" else "⚡", fontSize = 10.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (isParanoid) "OWASP Top 10 • STRIDE • Tripwires Active" else "Standard Pair Programmer",
+                    color = if (isParanoid) Color(0xFF81C784) else Color(0xFF8B949E),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Text("v0.7", color = Color(0xFF58A6FF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+
         // --- QUICK ACTION PILLS ---
         Row(
             modifier = Modifier
@@ -201,10 +225,10 @@ fun ChatView(
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            QuickActionButton(label = "🛡️ Audit", tooltip = "Scan file for OWASP vulnerabilities") {
-                messages.add(ChatMessage(text = "Running Security Audit on current file...", isUser = true))
+            QuickActionButton(label = "🛡️ SAST Audit", tooltip = "Full OWASP security audit & scorecard") {
+                messages.add(ChatMessage(text = "Running Security Scorecard & SAST Audit on current file...", isUser = true))
                 isLoading = true
-                statusText = "Auditing file for vulnerabilities..."
+                statusText = "Auditing file with OWASP scorecard..."
                 ChatService.runAudit(project) { response ->
                     isLoading = false
                     statusText = ""
@@ -213,11 +237,44 @@ fun ChatView(
                 }
             }
 
-            QuickActionButton(label = "💡 Explain", tooltip = "Explain selection or file") {
-                messages.add(ChatMessage(text = "Explain the current code architecture", isUser = true))
+            QuickActionButton(label = "🎯 STRIDE Threat", tooltip = "STRIDE Threat Modeling assessment") {
+                messages.add(ChatMessage(text = "Execute STRIDE Threat Modeling assessment", isUser = true))
                 isLoading = true
-                statusText = "Analyzing code structure..."
-                ChatService.runExplain(project) { response ->
+                statusText = "Synthesizing STRIDE Threat Matrix..."
+                ChatService.runThreatModel(project) { response ->
+                    isLoading = false
+                    statusText = ""
+                    messages.add(ChatMessage(text = response, isUser = false, isCodeAction = response.contains("```")))
+                }
+            }
+
+            QuickActionButton(label = "📦 Supply Chain", tooltip = "Audit dependencies for CVEs and malicious packages") {
+                messages.add(ChatMessage(text = "Audit supply chain and dependencies for vulnerabilities", isUser = true))
+                isLoading = true
+                statusText = "Scanning manifests and dependencies..."
+                ChatService.runSupplyChainAudit(project) { response ->
+                    isLoading = false
+                    statusText = ""
+                    messages.add(ChatMessage(text = response, isUser = false, isCodeAction = response.contains("```")))
+                }
+            }
+
+            QuickActionButton(label = "🔒 Input Shield", tooltip = "Generate defensive schema & input validation") {
+                messages.add(ChatMessage(text = "Generate defensive input validation shield and contracts", isUser = true))
+                isLoading = true
+                statusText = "Constructing defensive input contracts..."
+                ChatService.runInputShield(project) { response ->
+                    isLoading = false
+                    statusText = ""
+                    messages.add(ChatMessage(text = response, isUser = false, isCodeAction = response.contains("```")))
+                }
+            }
+
+            QuickActionButton(label = "🧹 Sanitize", tooltip = "Scrub secrets and upgrade crypto") {
+                messages.add(ChatMessage(text = "Sanitize secrets and upgrade weak crypto", isUser = true))
+                isLoading = true
+                statusText = "Sanitizing code..."
+                ChatService.runSanitize(project) { response ->
                     isLoading = false
                     statusText = ""
                     messages.add(ChatMessage(text = response, isUser = false, isCodeAction = response.contains("```")))
@@ -246,11 +303,11 @@ fun ChatView(
                 }
             }
 
-            QuickActionButton(label = "🔒 Sanitize", tooltip = "Scrub secrets and upgrade crypto") {
-                messages.add(ChatMessage(text = "Sanitize secrets and upgrade weak crypto", isUser = true))
+            QuickActionButton(label = "💡 Explain", tooltip = "Explain selection or file") {
+                messages.add(ChatMessage(text = "Explain the current code architecture", isUser = true))
                 isLoading = true
-                statusText = "Sanitizing code..."
-                ChatService.runSanitize(project) { response ->
+                statusText = "Analyzing code structure..."
+                ChatService.runExplain(project) { response ->
                     isLoading = false
                     statusText = ""
                     messages.add(ChatMessage(text = response, isUser = false, isCodeAction = response.contains("```")))
@@ -303,6 +360,63 @@ fun ChatView(
                 .background(Color(0xFF1E1E1E))
                 .padding(10.dp)
         ) {
+            if (showAddModelDialog) {
+                Card(
+                    shape = RoundedCornerShape(8.dp),
+                    backgroundColor = Color(0xFF252830),
+                    border = BorderStroke(1.dp, Color(0xFF3C4352)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("➕ Add Custom Model", color = Color(0xFF58A6FF), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("✕", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.clickable {
+                                showAddModelDialog = false
+                                newModelInput = ""
+                            }.pointerHoverIcon(PointerIcon(Cursor(Cursor.HAND_CURSOR))))
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Model ID (e.g. deepseek/deepseek-r1, qwen/qwen-2.5-coder-32b, ollama/codellama):", color = Color(0xFFAAAAAA), fontSize = 11.sp)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        BasicTextField(
+                            value = newModelInput,
+                            onValueChange = { newModelInput = it },
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
+                            cursorBrush = SolidColor(Color(0xFF2F80ED)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1E1E1E), RoundedCornerShape(4.dp))
+                                .border(1.dp, Color(0xFF4E5155), RoundedCornerShape(4.dp))
+                                .padding(6.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = {
+                                    val clean = newModelInput.trim()
+                                    if (clean.isNotBlank()) {
+                                        AppSettingsState.getInstance().addCustomModel(clean)
+                                        selectedModel = clean
+                                        newModelInput = ""
+                                        showAddModelDialog = false
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2F80ED)),
+                                modifier = Modifier.height(28.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                            ) {
+                                Text("Add & Select", color = Color.White, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -356,10 +470,16 @@ fun ChatView(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ModelPill(selectedModel) {
-                        selectedModel = it
-                        AppSettingsState.getInstance().modelName = it
-                    }
+                    ModelPill(
+                        selected = selectedModel,
+                        onSelect = {
+                            selectedModel = it
+                            AppSettingsState.getInstance().modelName = it
+                        },
+                        onOpenAddDialog = {
+                            showAddModelDialog = true
+                        }
+                    )
 
                     IconTextButton(
                         text = "Send ⏎",
@@ -571,9 +691,13 @@ fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -
 // --- MICRO COMPONENTS ---
 
 @Composable
-fun ModelPill(selected: String, onSelect: (String) -> Unit) {
+fun ModelPill(
+    selected: String,
+    onSelect: (String) -> Unit,
+    onOpenAddDialog: () -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
-    val items = listOf("gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "llama-3.3-70b-versatile")
+    val models = AppSettingsState.getInstance().getAvailableModels()
 
     Box {
         Surface(
@@ -584,7 +708,7 @@ fun ModelPill(selected: String, onSelect: (String) -> Unit) {
                 .pointerHoverIcon(PointerIcon(Cursor(Cursor.HAND_CURSOR)))
         ) {
             Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(selected, color = Color.White, fontSize = 10.sp)
+                Text("🤖 $selected", color = Color.White, fontSize = 10.sp, maxLines = 1)
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("▾", color = Color.Gray, fontSize = 10.sp)
             }
@@ -594,13 +718,24 @@ fun ModelPill(selected: String, onSelect: (String) -> Unit) {
             onDismissRequest = { expanded = false },
             modifier = Modifier.background(Color(0xFF252526))
         ) {
-            items.forEach { label ->
+            models.forEach { label ->
                 DropdownMenuItem(onClick = {
                     onSelect(label)
                     expanded = false
                 }) {
-                    Text(label, color = Color.White, fontSize = 12.sp)
+                    Text(
+                        text = if (label == selected) "✓ $label" else label,
+                        color = if (label == selected) Color(0xFF81C784) else Color.White,
+                        fontSize = 12.sp
+                    )
                 }
+            }
+            Divider(color = Color(0xFF3E3E42))
+            DropdownMenuItem(onClick = {
+                expanded = false
+                onOpenAddDialog()
+            }) {
+                Text("➕ Add Custom Model...", color = Color(0xFF58A6FF), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -625,6 +760,7 @@ fun SettingsView(onBack: () -> Unit) {
     val settings = AppSettingsState.getInstance()
     var apiKey by remember { mutableStateOf(settings.apiKey) }
     var customApiUrl by remember { mutableStateOf(settings.customApiUrl) }
+    var customModels by remember { mutableStateOf(settings.customModels) }
     var enableGhost by remember { mutableStateOf(settings.enableGhostText) }
     var enableParanoid by remember { mutableStateOf(settings.paranoidMode) }
 
@@ -674,6 +810,23 @@ fun SettingsView(onBack: () -> Unit) {
                 .padding(8.dp)
         )
 
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Custom Models
+        Text("Custom Models (comma separated, e.g. deepseek/deepseek-r1, qwen/qwen-2.5-coder-32b)", color = Color.Gray, fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        BasicTextField(
+            value = customModels,
+            onValueChange = { customModels = it },
+            singleLine = true,
+            textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF252526), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFF4E5155), RoundedCornerShape(4.dp))
+                .padding(8.dp)
+        )
+
         Spacer(modifier = Modifier.height(18.dp))
 
         // Toggles
@@ -692,6 +845,7 @@ fun SettingsView(onBack: () -> Unit) {
             onClick = {
                 settings.apiKey = apiKey
                 settings.customApiUrl = customApiUrl
+                settings.customModels = customModels
                 settings.enableGhostText = enableGhost
                 settings.paranoidMode = enableParanoid
                 if (enableGhost) com.hackathon.aihelper.AutoDevManager.start() else com.hackathon.aihelper.AutoDevManager.stop()

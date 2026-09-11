@@ -37,6 +37,32 @@ export function activate(context: vscode.ExtensionContext) {
       await AuditManager.auditActiveFile();
     }),
 
+    vscode.commands.registerCommand("auev.threatModel", async () => {
+      await chatProvider.postExternalAction("threatModel");
+      vscode.commands.executeCommand("auev.chatView.focus");
+    }),
+
+    vscode.commands.registerCommand("auev.supplyChainAudit", async () => {
+      await chatProvider.postExternalAction("supplyChain");
+      vscode.commands.executeCommand("auev.chatView.focus");
+    }),
+
+    vscode.commands.registerCommand("auev.inputShield", async () => {
+      await chatProvider.postExternalAction("inputShield");
+      vscode.commands.executeCommand("auev.chatView.focus");
+    }),
+
+    vscode.commands.registerCommand("auev.addModel", async () => {
+      const model = await vscode.window.showInputBox({
+        prompt: "Enter custom model name (e.g., deepseek/deepseek-r1, qwen/qwen-2.5-coder-32b, ollama/codellama)",
+        placeHolder: "provider/model-id"
+      });
+      if (model && model.trim()) {
+        await AuevAiClient.addCustomModel(model.trim());
+        vscode.window.showInformationMessage(`AUEV: Custom model '${model.trim()}' added.`);
+      }
+    }),
+
     vscode.commands.registerCommand("auev.explainCode", async () => {
       await chatProvider.postExternalAction("explain");
       vscode.commands.executeCommand("auev.chatView.focus");

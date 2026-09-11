@@ -33,6 +33,11 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.commands.executeCommand("auev.chatView.focus");
     }),
 
+    vscode.commands.registerCommand("auev.openApiKeyGuide", async () => {
+      await chatProvider.postExternalAction("apiKeyGuide");
+      vscode.commands.executeCommand("auev.chatView.focus");
+    }),
+
     vscode.commands.registerCommand("auev.auditFile", async () => {
       await AuditManager.auditActiveFile();
     }),

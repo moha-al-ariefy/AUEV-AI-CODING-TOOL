@@ -52,10 +52,53 @@ object ChatService {
         }
     }
 
+    fun getApiKeyGuide(): String {
+        return """
+            ### 🔑 AUEV API Key Setup Guide
+
+            Choose the model provider that fits your needs:
+
+            **1. ⚡ Groq Cloud (Ultra-Fast Free Tier)**
+            • Speed: ~500+ tokens/sec (blazing inline Ghost text)
+            • Key prefix: `gsk_`
+            • Free Sign up: https://console.groq.com/keys
+
+            **2. 🦙 Ollama (100% Free & Local - Zero API Keys!)**
+            • Complete air-gapped privacy on your own machine.
+            • Download from https://ollama.com and run:
+              `ollama run qwen2.5-coder` (or `llama3.2`)
+            • In AUEV Settings (⚙), set **Custom API URL** to:
+              `http://localhost:11434/v1`
+            • Leave API Key empty.
+
+            **3. 🧠 DeepSeek (Deep Reasoning at ~$0.14/M tokens)**
+            • SOTA algorithmic reasoning.
+            • Get key: https://platform.deepseek.com/api_keys
+            • Set Custom API URL: `https://api.deepseek.com/chat/completions`
+
+            **4. 🌐 OpenRouter (100+ Models with 1 Key)**
+            • Claude 3.7, GPT-4o, Gemini 2.0 Flash, Llama 3.3.
+            • Get key: https://openrouter.ai/keys
+            • Set Custom API URL: `https://openrouter.ai/api/v1/chat/completions`
+
+            **5. 🤖 OpenAI & Anthropic**
+            • OpenAI: https://platform.openai.com/api-keys
+            • Anthropic: https://console.anthropic.com/settings/keys
+
+            👉 Click the **⚙** gear icon above to open Settings and configure your key or custom endpoint!
+        """.trimIndent()
+    }
+
     // --- CHAT LOGIC ---
     fun sendMessage(project: Project, userPrompt: String, onResponse: Consumer<String>) {
+        val cleanPrompt = userPrompt.trim().lowercase()
+        if (cleanPrompt.startsWith("/guide") || cleanPrompt.startsWith("/keys") || cleanPrompt.startsWith("/apikey")) {
+            onResponse.accept(getApiKeyGuide())
+            return
+        }
+
         if (apiKey.isBlank() && customApiUrl.isBlank()) {
-            onResponse.accept("⚠️ Please configure your API Key in Settings (⚙).")
+            onResponse.accept(getApiKeyGuide())
             return
         }
 
@@ -267,7 +310,7 @@ object ChatService {
         onResponse: Consumer<String>
     ) {
         if (apiKey.isBlank() && customApiUrl.isBlank()) {
-            onResponse.accept("⚠️ Please configure your API Key or Custom Endpoint in Settings.")
+            onResponse.accept(getApiKeyGuide())
             return
         }
 
@@ -393,7 +436,12 @@ object ChatService {
         val provider = getProvider()
 
         val urlStr = if (customApiUrl.isNotBlank()) {
-            customApiUrl
+            var endpoint = customApiUrl.trim()
+            if (endpoint.endsWith("/")) endpoint = endpoint.dropLast(1)
+            if (!endpoint.endsWith("/chat/completions") && !endpoint.endsWith("/messages")) {
+                endpoint = "$endpoint/chat/completions"
+            }
+            endpoint
         } else {
             when (provider) {
                 Provider.ANTHROPIC -> "https://api.anthropic.com/v1/messages"

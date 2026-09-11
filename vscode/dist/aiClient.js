@@ -112,6 +112,58 @@ class AuevAiClient {
         }
         return Provider.OPENAI;
     }
+    static resolveEndpoint(customUrl, provider) {
+        if (customUrl) {
+            let clean = customUrl.trim();
+            if (clean.endsWith("/"))
+                clean = clean.slice(0, -1);
+            if (!clean.endsWith("/chat/completions") && !clean.endsWith("/messages")) {
+                clean = `${clean}/chat/completions`;
+            }
+            return clean;
+        }
+        return provider === Provider.ANTHROPIC
+            ? "https://api.anthropic.com/v1/messages"
+            : provider === Provider.GROQ
+                ? "https://api.groq.com/openai/v1/chat/completions"
+                : "https://api.openai.com/v1/chat/completions";
+    }
+    static getApiKeyGuideMarkdown() {
+        return `### 🔑 AUEV API Key Setup Guide
+
+Choose the provider that fits your workflow:
+
+#### 1. ⚡ Groq Cloud (Recommended for Instant Free Testing)
+- **Speed:** ~500+ tokens/sec (ultra-low latency for Ghost text).
+- **Cost:** Generous free tier.
+- **Get Key:** [console.groq.com/keys](https://console.groq.com/keys) (starts with \`gsk_\`).
+- Once pasted, AUEV automatically routes to Llama 3.3 70B!
+
+#### 2. 🦙 Ollama (100% Free & Local — Zero Keys Needed!)
+- **Privacy:** Complete privacy, air-gapped, zero telemetry.
+- **Steps:**
+  1. Install Ollama from [ollama.com](https://ollama.com).
+  2. Run in terminal: \`ollama run qwen2.5-coder\` (or \`llama3.2\`).
+  3. In AUEV Settings, set **Custom API URL** to:
+     \`http://localhost:11434/v1\`
+  4. Leave API Key empty. You're ready to code!
+
+#### 3. 🧠 DeepSeek (Deep Code Reasoning at ~$0.14/M tokens)
+- **Get Key:** [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys).
+- Set Custom API URL to: \`https://api.deepseek.com/chat/completions\`.
+- Set Model to \`deepseek-chat\` or \`deepseek-reasoner\`.
+
+#### 4. 🌐 OpenRouter (One Key for 100+ Models)
+- **Get Key:** [openrouter.ai/keys](https://openrouter.ai/keys).
+- Set Custom API URL to: \`https://openrouter.ai/api/v1/chat/completions\`.
+
+#### 5. 🤖 OpenAI & Anthropic
+- **OpenAI:** [platform.openai.com/api-keys](https://platform.openai.com/api-keys) (\`sk-...\` for GPT-4o).
+- **Anthropic:** [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) (\`sk-ant-...\` for Claude 3.5/3.7 Sonnet).
+
+---
+👉 Click **⚙️ Settings** in the top bar to paste your API Key or Custom URL.`;
+    }
     /**
      * Complete ghost text with ultra-low latency
      */
@@ -135,11 +187,7 @@ Complete the code at the [CURSOR] position.
 - If context implies an insecure operation, return an empty string to refuse completion.`;
         }
         const userContent = `PREFIX:\n${prefix}\n\n[CURSOR]\n\nSUFFIX:\n${suffix}`;
-        const url = customUrl || (provider === Provider.ANTHROPIC
-            ? "https://api.anthropic.com/v1/messages"
-            : provider === Provider.GROQ
-                ? "https://api.groq.com/openai/v1/chat/completions"
-                : "https://api.openai.com/v1/chat/completions");
+        const url = this.resolveEndpoint(customUrl, provider);
         let model = this.getModel();
         if (provider === Provider.GROQ && (!model || model.startsWith("gpt"))) {
             model = "llama-3.3-70b-versatile";
@@ -205,8 +253,13 @@ Complete the code at the [CURSOR] position.
     static async chat(userPrompt, contextCode = "", fileName = "", languageId = "") {
         const apiKey = this.getApiKey();
         const customUrl = this.getCustomApiUrl();
+        if (userPrompt.trim().toLowerCase().startsWith("/guide") ||
+            userPrompt.trim().toLowerCase().startsWith("/keys") ||
+            userPrompt.trim().toLowerCase().startsWith("/apikey")) {
+            return this.getApiKeyGuideMarkdown();
+        }
         if (!apiKey && !customUrl) {
-            return "⚠️ Please configure your API Key in Settings or the AUEV settings bar.";
+            return this.getApiKeyGuideMarkdown();
         }
         const provider = this.getProvider();
         const isParanoid = this.isParanoidMode();
@@ -223,11 +276,7 @@ Complete the code at the [CURSOR] position.
 - If an insecure pattern is requested, REFUSE and provide the hardened secure alternative.`;
         }
         const userMessage = `${fileName ? `Active File: ${fileName} (${languageId})\n\n` : ""}${contextCode ? `Context Snippet:\n\`\`\`${languageId}\n${contextCode.slice(0, 8000)}\n\`\`\`\n\n` : ""}User Request: ${userPrompt}`;
-        const url = customUrl || (provider === Provider.ANTHROPIC
-            ? "https://api.anthropic.com/v1/messages"
-            : provider === Provider.GROQ
-                ? "https://api.groq.com/openai/v1/chat/completions"
-                : "https://api.openai.com/v1/chat/completions");
+        const url = this.resolveEndpoint(customUrl, provider);
         let model = this.getModel();
         if (provider === Provider.GROQ && (!model || model.startsWith("gpt"))) {
             model = "llama-3.3-70b-versatile";

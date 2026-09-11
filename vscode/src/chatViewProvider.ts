@@ -40,6 +40,12 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
           this._view?.webview.postMessage({ type: "undoSuccess" });
           break;
         }
+        case "openUrl": {
+          if (data.url) {
+            vscode.env.openExternal(vscode.Uri.parse(data.url));
+          }
+          break;
+        }
         case "openSettings": {
           await vscode.commands.executeCommand("workbench.action.openSettings", "auev");
           break;
@@ -110,6 +116,14 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
 
   private async handleQuickAction(action: string) {
     if (!this._view) return;
+
+    if (action === "apiKeyGuide") {
+      this._view.webview.postMessage({
+        type: "addMessage",
+        message: { text: AuevAiClient.getApiKeyGuideMarkdown(), isUser: false }
+      });
+      return;
+    }
 
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -243,6 +257,7 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
     const config = vscode.workspace.getConfiguration("auev");
     const currentModel = config.get<string>("model", "gpt-4o");
     const isParanoid = config.get<boolean>("paranoidMode", true);
+    const hasKeyOrCustom = AuevAiClient.getApiKey().length > 0 || AuevAiClient.getCustomApiUrl().length > 0;
     const availableModels = AuevAiClient.getAvailableModels();
     const modelOptionsHtml = availableModels.map(m =>
       `<option value="${m}" ${currentModel === m ? "selected" : ""}>${m}</option>`
@@ -515,6 +530,7 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
       <span class="badge">${isParanoid ? "🛡️ Paranoid" : "⚡ Standard"}</span>
     </div>
     <div class="header-icons">
+      <button class="icon-btn" id="guideBtn" title="How to get API Keys (Free & Paid)">🔑 Keys</button>
       <button class="icon-btn" id="clearBtn" title="Clear Chat">🗑️</button>
       <button class="icon-btn" id="settingsBtn" title="AUEV Settings">⚙</button>
     </div>
@@ -526,6 +542,7 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
   </div>
 
   <div class="quick-actions">
+    <button class="action-pill" data-action="apiKeyGuide" title="API Key Setup Guide">🔑 Keys Guide</button>
     <button class="action-pill" data-action="audit" title="OWASP SAST Security Audit & Scorecard">🛡️ SAST Audit</button>
     <button class="action-pill" data-action="threatModel" title="STRIDE Threat Modeling">🎯 STRIDE Threat</button>
     <button class="action-pill" data-action="supplyChain" title="Dependency & CVE Audit">📦 Supply Chain</button>
@@ -539,7 +556,11 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
   <div class="chat-history" id="chatHistory">
     <div class="message bot">
       <div class="author-tag">AUEV</div>
-      <div class="bubble">Hello! I am AUEV (AI Unified Editor Vision) v0.7. Security-first pair programming suite activated. Ready to build robust, secure software.</div>
+      <div class="bubble">${
+        hasKeyOrCustom
+          ? "Hello! I am AUEV (AI Unified Editor Vision) v0.7. Security-first pair programming suite activated. Ready to build robust, secure software."
+          : "👋 Welcome to <b>AUEV v0.7</b>! Security-first AI pair programming suite.<br><br>💡 To start coding, you can connect an API key or run <b>100% Free Local AI</b> (Ollama) with zero keys required!<br><br>Click the <b>🔑 Keys</b> button above or the <b>🔑 Keys Guide</b> pill below to get set up in 30 seconds."
+      }</div>
     </div>
   </div>
 
@@ -580,6 +601,13 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
         tag.className = 'author-tag';
         tag.textContent = 'AUEV';
         msgDiv.appendChild(tag);
+      }
+
+      function formatMarkdown(str) {
+        return str
+          .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--accent);text-decoration:underline;cursor:pointer;">$1 ↗</a>')
+          .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+          .replace(new RegExp('\\x60([^\\x60]+)\\x60', 'g'), '<code style="background:#161616;padding:1px 4px;border-radius:3px;font-family:monospace;">$1</code>');
       }
 
       const hasCode = !isUser && text.includes('\`\`\`');
@@ -635,14 +663,14 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
           } else if (part.trim().length > 0) {
             const bubble = document.createElement('div');
             bubble.className = 'bubble';
-            bubble.textContent = part.trim();
+            bubble.innerHTML = formatMarkdown(part.trim());
             msgDiv.appendChild(bubble);
           }
         });
       } else {
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
-        bubble.textContent = text;
+        bubble.innerHTML = formatMarkdown(text);
         msgDiv.appendChild(bubble);
       }
 
@@ -665,6 +693,13 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
       }
     });
 
+    const guideBtn = document.getElementById('guideBtn');
+    if (guideBtn) {
+      guideBtn.onclick = () => {
+        vscode.postMessage({ type: 'quickAction', action: 'apiKeyGuide' });
+      };
+    }
+
     clearBtn.onclick = () => {
       chatHistory.innerHTML = '';
       appendMessage('Chat cleared. Ready for your next mission.', false);
@@ -673,6 +708,14 @@ export class AuevChatViewProvider implements vscode.WebviewViewProvider {
     settingsBtn.onclick = () => {
       vscode.postMessage({ type: 'openSettings' });
     };
+
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest('a');
+      if (a && a.href && a.href.startsWith('http')) {
+        e.preventDefault();
+        vscode.postMessage({ type: 'openUrl', url: a.href });
+      }
+    });
 
     modelSelector.onchange = () => {
       if (modelSelector.value === '__add_custom__') {

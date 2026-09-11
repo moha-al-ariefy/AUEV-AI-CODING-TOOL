@@ -16,10 +16,12 @@
 
 package com.hackathon.aihelper.settings
 
+import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
+import java.awt.FlowLayout
 import javax.swing.JPanel
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -64,8 +66,19 @@ class AppSettingsComponent {
             }
         })
 
+        val linksPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 2)).apply {
+            add(JBLabel("🔑 Get Keys:"))
+            add(HyperlinkLabel("Groq (Free)").apply { setHyperlinkTarget("https://console.groq.com/keys") })
+            add(HyperlinkLabel("Ollama (Local)").apply { setHyperlinkTarget("https://ollama.com") })
+            add(HyperlinkLabel("DeepSeek").apply { setHyperlinkTarget("https://platform.deepseek.com/api_keys") })
+            add(HyperlinkLabel("OpenRouter").apply { setHyperlinkTarget("https://openrouter.ai/keys") })
+            add(HyperlinkLabel("OpenAI").apply { setHyperlinkTarget("https://platform.openai.com/api-keys") })
+            add(HyperlinkLabel("Anthropic").apply { setHyperlinkTarget("https://console.anthropic.com/settings/keys") })
+        }
+
         panel = FormBuilder.createFormBuilder()
             .addLabeledComponent(JBLabel("API Key (OpenAI / Anthropic / Groq):"), apiKeyField, 1, false)
+            .addComponent(linksPanel, 1)
             .addLabeledComponent(JBLabel("Model Name (Auto-Detected):"), modelField, 1, false)
             .addLabeledComponent(JBLabel("Custom API Base URL (Ollama / OpenRouter / Local):"), customApiUrlField, 1, false)
             .addSeparator() // Make it look fancy

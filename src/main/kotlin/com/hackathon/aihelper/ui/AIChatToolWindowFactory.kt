@@ -100,7 +100,15 @@ fun MainScreen(project: Project) {
 
     LaunchedEffect(Unit) {
         if (messages.isEmpty()) {
-            messages.add(ChatMessage(text = "Hello! I am AUEV. Ready to code safely.", isUser = false))
+            val settings = AppSettingsState.getInstance()
+            if (settings.apiKey.isBlank() && settings.customApiUrl.isBlank()) {
+                messages.add(ChatMessage(
+                    text = "👋 Welcome to AUEV v0.7! Security-First AI pair programmer.\n\n💡 To start coding, enter your API key or use 100% Free Local AI (Ollama).\nClick 🔑 above or type /guide for step-by-step instructions in 30 seconds!",
+                    isUser = false
+                ))
+            } else {
+                messages.add(ChatMessage(text = "Hello! I am AUEV. Ready to code safely.", isUser = false))
+            }
         }
     }
 
@@ -171,6 +179,18 @@ fun ChatView(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // API Key Guide Button
+                IconButton(
+                    onClick = {
+                        messages.add(ChatMessage(text = com.hackathon.aihelper.ui.ChatService.getApiKeyGuide(), isUser = false))
+                    },
+                    modifier = Modifier.size(28.dp).pointerHoverIcon(PointerIcon(Cursor(Cursor.HAND_CURSOR)))
+                ) {
+                    Text("🔑", fontSize = 12.sp)
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
                 // Clear Chat Button
                 IconButton(
                     onClick = {
@@ -793,6 +813,17 @@ fun SettingsView(onBack: () -> Unit) {
                 .padding(8.dp)
         )
 
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            KeyLinkChip("⚡ Groq (Free)") { com.intellij.ide.BrowserUtil.browse("https://console.groq.com/keys") }
+            KeyLinkChip("🦙 Ollama (Local)") { com.intellij.ide.BrowserUtil.browse("https://ollama.com") }
+            KeyLinkChip("🧠 DeepSeek") { com.intellij.ide.BrowserUtil.browse("https://platform.deepseek.com/api_keys") }
+            KeyLinkChip("🌐 OpenRouter") { com.intellij.ide.BrowserUtil.browse("https://openrouter.ai/keys") }
+        }
+
         Spacer(modifier = Modifier.height(14.dp))
 
         // Custom API Base URL
@@ -856,5 +887,23 @@ fun SettingsView(onBack: () -> Unit) {
         ) {
             Text("Save & Exit", color = Color.White)
         }
+    }
+}
+
+@Composable
+fun KeyLinkChip(text: String, onClick: () -> Unit) {
+    Surface(
+        color = Color(0xFF252526),
+        shape = RoundedCornerShape(4.dp),
+        border = BorderStroke(1.dp, Color(0xFF3C404B)),
+        modifier = Modifier.clickable { onClick() }.pointerHoverIcon(PointerIcon(Cursor(Cursor.HAND_CURSOR)))
+    ) {
+        Text(
+            text = text,
+            color = Color(0xFF58A6FF),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+        )
     }
 }

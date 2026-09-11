@@ -70,6 +70,11 @@
         "category": "AUEV"
       },
       {
+        "command": "auev.openApiKeyGuide",
+        "title": "AUEV: How to get API Keys (Free & Local Guide)",
+        "category": "AUEV"
+      },
+      {
         "command": "auev.auditFile",
         "title": "AUEV: SAST Security Audit & Scorecard",
         "category": "AUEV"

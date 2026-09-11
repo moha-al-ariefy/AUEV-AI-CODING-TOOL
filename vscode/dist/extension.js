@@ -52,6 +52,9 @@ function activate(context) {
     // 3. Register Commands
     context.subscriptions.push(vscode.commands.registerCommand("auev.openChat", () => {
         vscode.commands.executeCommand("auev.chatView.focus");
+    }), vscode.commands.registerCommand("auev.openApiKeyGuide", async () => {
+        await chatProvider.postExternalAction("apiKeyGuide");
+        vscode.commands.executeCommand("auev.chatView.focus");
     }), vscode.commands.registerCommand("auev.auditFile", async () => {
         await auditManager_1.AuditManager.auditActiveFile();
     }), vscode.commands.registerCommand("auev.threatModel", async () => {

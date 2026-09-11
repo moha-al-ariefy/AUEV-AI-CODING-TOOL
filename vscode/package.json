@@ -1,0 +1,176 @@
+{
+  "name": "auev",
+  "displayName": "AUEV - AI Unified Editor Vision",
+  "description": "Security-First AI development suite with toggleable Smart Ghost Text, local secret tripwires, OWASP audit, and BYOK multi-provider intelligence.",
+  "version": "0.6.0",
+  "publisher": "moha-al-ariefy",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Linters",
+    "Formatters",
+    "Education"
+  ],
+  "keywords": [
+    "auev",
+    "ghost text",
+    "security",
+    "copilot",
+    "owasp",
+    "ai completion",
+    "openai",
+    "claude",
+    "groq"
+  ],
+  "activationEvents": [
+    "onLanguage:*",
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "auev-explorer",
+          "title": "AUEV",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "auev-explorer": [
+        {
+          "type": "webview",
+          "id": "auev.chatView",
+          "name": "AUEV Assistant"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "auev.openChat",
+        "title": "AUEV: Open AI Assistant Sidebar",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.auditFile",
+        "title": "AUEV: Run Security Audit (OWASP Top 10)",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.explainCode",
+        "title": "AUEV: Explain Selection",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.refactorCode",
+        "title": "AUEV: Refactor & Clean Code",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.generateTests",
+        "title": "AUEV: Generate Tests",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.sanitizeCode",
+        "title": "AUEV: Sanitize Secrets & Upgrade Crypto",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.toggleGhost",
+        "title": "AUEV: Toggle Ghost Text On/Off",
+        "category": "AUEV"
+      },
+      {
+        "command": "auev.toggleParanoid",
+        "title": "AUEV: Toggle Paranoid Mode On/Off",
+        "category": "AUEV"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "auev.auditFile",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      },
+      {
+        "command": "auev.openChat",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "auev.auditFile",
+          "group": "auev@1"
+        },
+        {
+          "command": "auev.explainCode",
+          "group": "auev@2",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "auev.refactorCode",
+          "group": "auev@3",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "auev.generateTests",
+          "group": "auev@4",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "auev.sanitizeCode",
+          "group": "auev@5"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AUEV AI Helper",
+      "properties": {
+        "auev.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your API Key for OpenAI (sk-...), Anthropic (sk-ant-...), or Groq (gsk_...). BYOK."
+        },
+        "auev.model": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "Model identifier to use (e.g., gpt-4o, claude-3-5-sonnet-20240620, llama-3.3-70b-versatile)."
+        },
+        "auev.customApiUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Custom API Base URL (optional for Ollama, OpenRouter, or local LLM server)."
+        },
+        "auev.enableGhostText": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable spectral inline ghost text code completion."
+        },
+        "auev.paranoidMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Paranoid Mode: injects strict OWASP Top 10 guidelines and activates local heuristic secret shields."
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}

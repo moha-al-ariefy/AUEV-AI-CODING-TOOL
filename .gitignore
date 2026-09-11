@@ -13,3 +13,6 @@ repomix-outputkeep.xml
 repomix-outputkeep.xml
 repomix-outputfix1.xml
 ketchup/
+node_modules/
+**/node_modules/
+.vscode-test/

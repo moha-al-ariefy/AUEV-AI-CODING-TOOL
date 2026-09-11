@@ -18,6 +18,43 @@ export class AuevAiClient {
     return config.get<string>("model", "gpt-4o").trim();
   }
 
+  public static getCustomModels(): string[] {
+    const config = vscode.workspace.getConfiguration("auev");
+    const raw = config.get<string | string[]>("customModels", "deepseek/deepseek-r1,qwen/qwen-2.5-coder-32b,claude-3-5-haiku-20241022");
+    if (Array.isArray(raw)) {
+      return raw.map(s => s.trim()).filter(Boolean);
+    }
+    return String(raw).split(",").map(s => s.trim()).filter(Boolean);
+  }
+
+  public static getAvailableModels(): string[] {
+    const presets = [
+      "gpt-4o",
+      "gpt-4o-mini",
+      "o1",
+      "claude-3-5-sonnet-20240620",
+      "claude-3-5-haiku-20241022",
+      "llama-3.3-70b-versatile",
+      "deepseek-chat",
+      "deepseek-reasoner"
+    ];
+    const custom = this.getCustomModels();
+    return Array.from(new Set([...presets, ...custom]));
+  }
+
+  public static async addCustomModel(model: string): Promise<void> {
+    const clean = model.trim();
+    if (!clean) return;
+    const current = this.getCustomModels();
+    if (!current.includes(clean)) {
+      current.push(clean);
+      const config = vscode.workspace.getConfiguration("auev");
+      await config.update("customModels", current.join(","), vscode.ConfigurationTarget.Global);
+    }
+    const config = vscode.workspace.getConfiguration("auev");
+    await config.update("model", clean, vscode.ConfigurationTarget.Global);
+  }
+
   public static getCustomApiUrl(): string {
     const config = vscode.workspace.getConfiguration("auev");
     return config.get<string>("customApiUrl", "").trim();
@@ -260,10 +297,53 @@ Complete the code at the [CURSOR] position.
   public static async runAudit(fileName: string, lang: string, code: string): Promise<string> {
     const prompt = `You are a Principal Security Auditor & OWASP Fellow.
 Audit the provided code for security vulnerabilities, OWASP Top 10 risks, secret leaks, and insecure crypto.
-Provide:
-1. 🚨 Vulnerability Summary (Severity: Critical / High / Medium / Low)
-2. 🔍 Analysis of issues found (with line context and exploit vectors)
+Structure your response with:
+1. 📊 Security Scorecard:
+   - Security Grade: [A+ / A / B / C / D / F]
+   - Risk Level: [LOW / MEDIUM / HIGH / CRITICAL]
+   - Exploitability Index: [1-10]
+   - OWASP Categories Triggered: [e.g. A01:2021 Broken Access Control, A03:2021 Injection]
+2. 🚨 Vulnerability Analysis (line references, attack vectors, CVSS estimate)
 3. 🛡️ Secure Remediated Code (Full corrected code block in \`\`\`${lang} ... \`\`\`)`;
+    return this.chat(prompt, code, fileName, lang);
+  }
+
+  public static async runThreatModel(fileName: string, lang: string, code: string): Promise<string> {
+    const prompt = `You are a Principal Security Architect & Threat Modeling Specialist.
+Perform a formal STRIDE Threat Modeling assessment on the provided code/module.
+Analyze the following threat categories:
+- [S] Spoofing (Identity spoofing, session hijacking, unauthenticated access)
+- [T] Tampering (Data corruption, in-flight alteration, parameter tampering)
+- [R] Repudiation (Lack of audit logging, deniability of critical actions)
+- [I] Information Disclosure (Data exposure, stack trace leakage, side channels)
+- [D] Denial of Service (Algorithmic complexity, unconstrained resource consumption)
+- [E] Elevation of Privilege (Role bypass, IDOR, path traversal, unsafe reflection)
+
+Format your output with:
+1. 🎯 STRIDE Threat Matrix (Table: Threat | Vector | Severity | Trust Boundary)
+2. 🛡️ Attack Surface & Trust Boundary Breakdown
+3. 🔒 Hardened Architecture & Mitigation Code (Complete runnable fix in \`\`\`${lang} ... \`\`\`)`;
+    return this.chat(prompt, code, fileName, lang);
+  }
+
+  public static async runSupplyChainAudit(fileName: string, lang: string, code: string): Promise<string> {
+    const prompt = `You are a DevSecOps & Software Supply Chain Security Architect.
+Analyze the provided code, imports, dependency declarations, and package references.
+Evaluate:
+1. 📦 Dependency & Manifest Risks (vulnerable packages, known CVEs, unpinned floating ranges)
+2. ⚠️ Typosquatting & Malicious Package Vectors (suspicious library names or risky postinstall hooks)
+3. 🔒 Repository Integrity (insecure HTTP endpoints, missing checksums/hashes)
+4. 📋 Supply Chain Scorecard & Pinned Safe Manifest Recommendation (Provide pinned manifest or safe import alternatives in \`\`\`${lang} ... \`\`\`)`;
+    return this.chat(prompt, code, fileName, lang);
+  }
+
+  public static async runInputShield(fileName: string, lang: string, code: string): Promise<string> {
+    const prompt = `You are an Application Security Engineer specializing in Defensive Design and Input Sanitization.
+Analyze the inputs, parameters, and contracts in the provided code.
+Produce:
+1. 🛡️ Input Boundary Analysis (identify all entry points: REST parameters, queries, body payloads, CLI args, file inputs)
+2. 🔒 Defensive Validation Shield (Generate strict schema validation / contract code using the most idiomatic library for ${lang}: e.g. Zod/Joi for TS/JS, Pydantic for Python, Hibernate Validator for Java/Kotlin, serde for Rust)
+3. 🧹 Sanitized Type Contracts & Enforced Boundary Assertions in \`\`\`${lang} ... \`\`\``;
     return this.chat(prompt, code, fileName, lang);
   }
 

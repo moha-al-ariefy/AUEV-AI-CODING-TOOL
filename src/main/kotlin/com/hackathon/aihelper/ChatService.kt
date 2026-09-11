@@ -125,14 +125,75 @@ object ChatService {
     fun runAudit(project: Project, onResponse: Consumer<String>) {
         executeFileTask(
             project = project,
-            taskName = "Security Audit",
+            taskName = "Security Scorecard & Audit",
             systemPrompt = """
                 You are a Principal Security Auditor & OWASP Fellow.
                 Audit the provided code for security vulnerabilities, OWASP Top 10 risks, secret leaks, and insecure dependencies.
                 Structure your response with:
-                1. 🚨 Vulnerability Summary (Severity: Critical / High / Medium / Low)
-                2. 🔍 Analysis of issues found (with line context and exploit vectors)
-                3. 🛡️ Secure Remediated Code (Full corrected code block)
+                1. 📊 Security Scorecard:
+                   - Security Grade: [A+ / A / B / C / D / F]
+                   - Risk Level: [LOW / MEDIUM / HIGH / CRITICAL]
+                   - Exploitability Index: [1-10]
+                   - OWASP Categories Triggered: [e.g. A01:2021 Broken Access Control, A03:2021 Injection]
+                2. 🚨 Vulnerability Analysis (line references, attack vectors, CVSS estimate)
+                3. 🛡️ Secure Remediated Code (Full corrected code block ready for deployment)
+            """.trimIndent(),
+            onResponse = onResponse
+        )
+    }
+
+    fun runThreatModel(project: Project, onResponse: Consumer<String>) {
+        executeFileTask(
+            project = project,
+            taskName = "STRIDE Threat Modeling",
+            systemPrompt = """
+                You are a Principal Security Architect & Threat Modeling Specialist.
+                Perform a formal STRIDE Threat Modeling assessment on the provided code/module.
+                Analyze the following threat categories:
+                - [S] Spoofing (Identity spoofing, session hijacking, unauthenticated access)
+                - [T] Tampering (Data corruption, in-flight alteration, parameter tampering)
+                - [R] Repudiation (Lack of audit logging, deniability of critical actions)
+                - [I] Information Disclosure (Data exposure, stack trace leakage, side channels)
+                - [D] Denial of Service (Algorithmic complexity, unconstrained resource consumption)
+                - [E] Elevation of Privilege (Role bypass, IDOR, path traversal, unsafe reflection)
+
+                Format your output with:
+                1. 🎯 STRIDE Threat Matrix (Table: Threat | Vector | Severity | Trust Boundary)
+                2. 🛡️ Attack Surface & Trust Boundary Breakdown
+                3. 🔒 Hardened Architecture & Mitigation Code (Complete runnable fix)
+            """.trimIndent(),
+            onResponse = onResponse
+        )
+    }
+
+    fun runSupplyChainAudit(project: Project, onResponse: Consumer<String>) {
+        executeFileTask(
+            project = project,
+            taskName = "Supply Chain & Dependency Audit",
+            systemPrompt = """
+                You are a DevSecOps & Software Supply Chain Security Architect.
+                Analyze the provided code, imports, dependency declarations, and package references.
+                Evaluate:
+                1. 📦 Dependency & Manifest Risks (vulnerable packages, known CVEs, unpinned floating ranges)
+                2. ⚠️ Typosquatting & Malicious Package Vectors (suspicious library names or risky postinstall hooks)
+                3. 🔒 Repository Integrity (insecure HTTP endpoints, missing checksums/hashes)
+                4. 📋 Supply Chain Scorecard & Pinned Safe Manifest Recommendation (Provide pinned manifest or safe import alternatives)
+            """.trimIndent(),
+            onResponse = onResponse
+        )
+    }
+
+    fun runInputShield(project: Project, onResponse: Consumer<String>) {
+        executeFileTask(
+            project = project,
+            taskName = "Input Validation & Contract Shield",
+            systemPrompt = """
+                You are an Application Security Engineer specializing in Defensive Design and Input Sanitization.
+                Analyze the inputs, parameters, and contracts in the provided code.
+                Produce:
+                1. 🛡️ Input Boundary Analysis (identify all entry points: REST parameters, queries, body payloads, CLI args, file inputs)
+                2. 🔒 Defensive Validation Shield (Generate strict schema validation / contract code using the most idiomatic library for the language: e.g. Zod/Joi for TS/JS, Pydantic for Python, Hibernate Validator/Bean Validation for Java/Kotlin, serde for Rust, etc.)
+                3. 🧹 Sanitized Type Contracts & Enforced Boundary Assertions
             """.trimIndent(),
             onResponse = onResponse
         )

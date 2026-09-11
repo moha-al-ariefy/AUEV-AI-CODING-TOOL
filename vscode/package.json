@@ -8,6 +8,7 @@
     "type": "git",
     "url": "https://github.com/moha-al-ariefy/AUEV-AI-CODING-TOOL"
   },
+  "homepage": "https://auev.dev",
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.85.0"

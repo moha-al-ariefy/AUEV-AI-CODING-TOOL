@@ -1,8 +1,7 @@
 # AUEV (AI Coding Tool) - v0.7 The Secure Coding Suite
 
 **AUEV** is an elite **Security-First** AI development suite engineered for **JetBrains IDEs** (IntelliJ IDEA, WebStorm, PyCharm, CLion, GoLand, Android Studio) and **Visual Studio Code**.
-
-[🌐 Visit the Official Website](https://auev-bymrsheep.vercel.app/)
+[🌐 Visit the Official Website: auev.dev](https://auev.dev)
 
 While conventional coding assistants blindly autocomplete whatever pattern they predict, **AUEV prioritizes defensive engineering**. We integrate low-latency **Smart Ghost Text** with a comprehensive **Paranoid Security Architecture** designed to detect vulnerabilities, model threats, and audit dependencies *before* code ever touches production.
 

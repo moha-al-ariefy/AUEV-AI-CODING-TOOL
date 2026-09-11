@@ -111,24 +111,55 @@ object GhostSanitizer {
         // ---------------------------------------------------------
         // 4. THE SECURITY SCRUBBER (The "Auto-Sanitization" Feature)
         // ---------------------------------------------------------
-        // I added this so the README isn't lying. If the AI suggests a hardcoded password
-        // or a known bad pattern, I scrub it out before it hits the editor.
+        // Aggressive local heuristics intercept weak crypto and secrets across languages
 
-        // Scrub hardcoded credentials (Variables named password, secret, token, key)
+        // 4A. Redact high-entropy secret patterns
+        cleanAI = cleanAI
+            .replace(Regex("AKIA[0-9A-Z]{16}"), "\"[REDACTED_AWS_KEY]\"")
+            .replace(Regex("ghp_[a-zA-Z0-9]{36}"), "\"[REDACTED_GITHUB_PAT]\"")
+            .replace(Regex("github_pat_[a-zA-Z0-9_]{82}"), "\"[REDACTED_GITHUB_FINE_GRAINED_PAT]\"")
+            .replace(Regex("sk-[a-zA-Z0-9]{48}"), "\"[REDACTED_OPENAI_KEY]\"")
+            .replace(Regex("sk-ant-[a-zA-Z0-9\\-_]{32,}"), "\"[REDACTED_ANTHROPIC_KEY]\"")
+            .replace(Regex("gsk_[a-zA-Z0-9]{48,}"), "\"[REDACTED_GROQ_KEY]\"")
+            .replace(Regex("-----BEGIN [A-Z ]+PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]+PRIVATE KEY-----"), "\"[REDACTED_PRIVATE_KEY]\"")
+            .replace(Regex("ey[A-Za-z0-9-_]{10,}\\.ey[A-Za-z0-9-_]{10,}\\.[A-Za-z0-9-_]{10,}"), "\"[REDACTED_JWT]\"")
+
+        // 4B. Scrub hardcoded credentials (Variables named password, secret, token, key)
         cleanAI = cleanAI.replace(
-            Regex("(?i)(password|secret|token|key|pwd)\\s*(:|=)\\s*[\"'][^\"']+[\"']"),
+            Regex("(?i)(password|secret|token|api_?key|pwd|client_secret)\\s*(:|=)\\s*[\"'][^\"'\\s]{6,}[\"']"),
             "$1 $2 \"[REDACTED BY AUEV]\""
         )
 
-        // Scrub weak crypto algorithms (Because MD5/SHA-1 are basically plaintext now)
-        cleanAI = cleanAI.replace(
-            Regex("(?i)getInstance\\([\"']MD5[\"']\\)"),
-            "getInstance(\"SHA-256\" /* AUEV: Upgraded from weak MD5 */)"
-        )
-        cleanAI = cleanAI.replace(
-            Regex("(?i)getInstance\\([\"']SHA-1[\"']\\)"),
-            "getInstance(\"SHA-256\" /* AUEV: Upgraded from weak SHA-1 */)"
-        )
+        // 4C. Upgrade weak crypto algorithms (Java/Kotlin, Python, JavaScript/TypeScript)
+        cleanAI = cleanAI
+            .replace(
+                Regex("(?i)getInstance\\([\"']MD5[\"']\\)"),
+                "getInstance(\"SHA-256\" /* AUEV: Upgraded from weak MD5 */)"
+            )
+            .replace(
+                Regex("(?i)getInstance\\([\"']SHA-1[\"']\\)"),
+                "getInstance(\"SHA-256\" /* AUEV: Upgraded from weak SHA-1 */)"
+            )
+            .replace(
+                Regex("(?i)Cipher\\.getInstance\\([\"']DES[\"']\\)"),
+                "Cipher.getInstance(\"AES/GCM/NoPadding\" /* AUEV: Upgraded from insecure DES */)"
+            )
+            .replace(
+                Regex("hashlib\\.md5\\("),
+                "hashlib.sha256( # AUEV: Upgraded from weak MD5\n"
+            )
+            .replace(
+                Regex("hashlib\\.sha1\\("),
+                "hashlib.sha256( # AUEV: Upgraded from weak SHA-1\n"
+            )
+            .replace(
+                Regex("crypto\\.createHash\\([\"']md5[\"']\\)"),
+                "crypto.createHash(\"sha256\") /* AUEV: Upgraded from weak MD5 */"
+            )
+            .replace(
+                Regex("crypto\\.createHash\\([\"']sha1[\"']\\)"),
+                "crypto.createHash(\"sha256\") /* AUEV: Upgraded from weak SHA-1 */"
+            )
 
         return MergeResult(cleanAI.trimEnd(), charsToDelete)
     }

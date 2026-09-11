@@ -31,11 +31,15 @@ class AppSettingsState : PersistentStateComponent<AppSettingsState> {
     var apiKey: String = ""
     var modelName: String = "gpt-4o" // Default
 
+    // Custom endpoint (Ollama, OpenRouter, Local LLM)
+    var customApiUrl: String = ""
+    var customModelName: String = ""
+
     // I added this switch because sometimes the ghost gets too clingy
     var enableGhostText: Boolean = true
 
-    // Placeholder for when I get around to making the AI terrified of hackers
-    var paranoidMode: Boolean = false
+    // Paranoid Mode: Strict OWASP & Security tripwires
+    var paranoidMode: Boolean = true
     var chatFontSize: Int = 13
     companion object {
         fun getInstance(): AppSettingsState {

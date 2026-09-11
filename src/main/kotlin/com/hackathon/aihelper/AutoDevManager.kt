@@ -231,33 +231,45 @@ object AutoDevManager : EditorFactoryListener {
 
         val userContent = "PREFIX:\n$prefix\n\n[CURSOR]\n\nSUFFIX:\n$suffix"
 
-        val urlStr = when (provider) {
-            Provider.ANTHROPIC -> "https://api.anthropic.com/v1/messages"
-            Provider.GROQ -> "https://api.groq.com/openai/v1/chat/completions"
-            Provider.OPENAI -> "https://api.openai.com/v1/chat/completions"
+        val customUrl = AppSettingsState.getInstance().customApiUrl.trim()
+        val urlStr = if (customUrl.isNotBlank()) {
+            customUrl
+        } else {
+            when (provider) {
+                Provider.ANTHROPIC -> "https://api.anthropic.com/v1/messages"
+                Provider.GROQ -> "https://api.groq.com/openai/v1/chat/completions"
+                Provider.OPENAI -> "https://api.openai.com/v1/chat/completions"
+            }
         }
 
-        // I updated this because URL(string) is deprecated. URI.create().toURL() is the modern way.
+        val actualModel = when {
+            provider == Provider.GROQ && (model.isBlank() || model.startsWith("gpt")) -> "llama-3.3-70b-versatile"
+            provider == Provider.ANTHROPIC && (model.isBlank() || model.startsWith("gpt")) -> "claude-3-5-sonnet-20240620"
+            else -> model.ifBlank { "gpt-4o" }
+        }
+
         val url = URI.create(urlStr).toURL()
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.doOutput = true
-        conn.connectTimeout = 3000
-        conn.readTimeout = 5000
+        conn.connectTimeout = 4000
+        conn.readTimeout = 7000
 
         if (provider == Provider.ANTHROPIC) {
             conn.setRequestProperty("x-api-key", apiKey)
             conn.setRequestProperty("anthropic-version", "2023-06-01")
             conn.setRequestProperty("content-type", "application/json")
         } else {
-            conn.setRequestProperty("Authorization", "Bearer $apiKey")
+            if (apiKey.isNotBlank()) {
+                conn.setRequestProperty("Authorization", "Bearer $apiKey")
+            }
             conn.setRequestProperty("Content-Type", "application/json")
         }
 
         val jsonInput = if (provider == Provider.ANTHROPIC) {
             """
             {
-                "model": "${model.ifBlank { "claude-3-5-sonnet-20240620" }}",
+                "model": "$actualModel",
                 "max_tokens": 128,
                 "system": "${escapeJson(sysPrompt)}",
                 "messages": [
@@ -269,7 +281,7 @@ object AutoDevManager : EditorFactoryListener {
         } else {
             """
             {
-                "model": "${model.ifBlank { "gpt-4o" }}",
+                "model": "$actualModel",
                 "messages": [
                     {"role": "system", "content": "${escapeJson(sysPrompt)}"},
                     {"role": "user", "content": "${escapeJson(userContent)}"}
@@ -326,15 +338,20 @@ object AutoDevManager : EditorFactoryListener {
 
     // --- SECURITY SCANNER ---
 
-    // I added this regex scanner to catch the LLM if it hallucinates someone's keys or obvious passwords.
-    // We check this BEFORE sending the ghost text to the editor.
+    // Enhanced regex scanner to catch secrets, private keys, database URLs, and API tokens
     private fun containsSecrets(text: String): Boolean {
         val secretPatterns = listOf(
             Regex("AKIA[0-9A-Z]{16}"), // AWS Access Key pattern
-            Regex("sk-[a-zA-Z0-9]{48}"), // Standard OpenAI Key pattern
-            Regex("sk-ant-[a-zA-Z0-9\\-_]+"), // Anthropic Key pattern
-            Regex("ghp_[a-zA-Z0-9]{36}"), // GitHub PAT pattern
-            Regex("(?i)(password|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"'][a-zA-Z0-9_\\-@!#\$%^&*]{8,}[\"']") // Catch-all for hardcoded passwords/tokens
+            Regex("sk-[a-zA-Z0-9]{48,}"), // OpenAI Key pattern
+            Regex("sk-proj-[a-zA-Z0-9\\-_]{48,}"), // OpenAI Project Key pattern
+            Regex("sk-ant-[a-zA-Z0-9\\-_]{32,}"), // Anthropic Key pattern
+            Regex("gsk_[a-zA-Z0-9]{48,}"), // Groq Key pattern
+            Regex("ghp_[a-zA-Z0-9]{36}"), // GitHub Classic PAT
+            Regex("github_pat_[a-zA-Z0-9_]{82}"), // GitHub Fine-grained PAT
+            Regex("-----BEGIN [A-Z ]+PRIVATE KEY-----"), // RSA / EC / SSH private key
+            Regex("ey[A-Za-z0-9-_]{10,}\\.ey[A-Za-z0-9-_]{10,}\\.[A-Za-z0-9-_]{10,}"), // JWT Token
+            Regex("(?i)(postgres|mysql|mongodb|redis)://[^:]+:[^@]+@"), // DB connection URI with password
+            Regex("(?i)(password|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"'][a-zA-Z0-9_\\-@!#\$%^&*]{8,}[\"']") // Catch-all for hardcoded credentials
         )
         return secretPatterns.any { it.containsMatchIn(text) }
     }

@@ -30,19 +30,21 @@ import java.util.function.Consumer
 object ChatService {
 
     private val apiKey: String
-        get() = AppSettingsState.getInstance().apiKey
+        get() = AppSettingsState.getInstance().apiKey.trim()
 
     private val model: String
-        get() = AppSettingsState.getInstance().modelName // I removed the default here so I can handle it smarter later
+        get() = AppSettingsState.getInstance().modelName.trim()
 
-    // I added this so we can check if the user is in Paranoid Mode
     private val isParanoidMode: Boolean
         get() = AppSettingsState.getInstance().paranoidMode
 
-    // I added this enum so the chat knows who it's talking to
-    private enum class Provider { OPENAI, ANTHROPIC, GROQ }
+    private val customApiUrl: String
+        get() = AppSettingsState.getInstance().customApiUrl.trim()
+
+    private enum class Provider { OPENAI, ANTHROPIC, GROQ, CUSTOM }
 
     private fun getProvider(): Provider {
+        if (customApiUrl.isNotBlank()) return Provider.CUSTOM
         return when {
             apiKey.startsWith("sk-ant-") -> Provider.ANTHROPIC
             apiKey.startsWith("gsk_") -> Provider.GROQ
@@ -52,54 +54,59 @@ object ChatService {
 
     // --- CHAT LOGIC ---
     fun sendMessage(project: Project, userPrompt: String, onResponse: Consumer<String>) {
-        if (apiKey.isBlank()) {
-            onResponse.accept("⚠️ Please configure your API Key in Settings.")
+        if (apiKey.isBlank() && customApiUrl.isBlank()) {
+            onResponse.accept("⚠️ Please configure your API Key in Settings (⚙).")
             return
         }
 
         val editor = FileEditorManager.getInstance(project).selectedTextEditor
-        val currentCode = editor?.document?.text ?: "No file open."
-        val fileExtension = editor?.virtualFile?.extension ?: "unknown"
+        val currentCode = editor?.document?.text ?: ""
+        val selectedCode = editor?.selectionModel?.selectedText ?: ""
+        val fileExtension = editor?.virtualFile?.extension ?: "txt"
+        val fileName = editor?.virtualFile?.name ?: "Unknown"
 
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                // FIXED: Professional, Senior-Level System Prompt
                 var systemPrompt = """
-                    You are AUEV, an expert coding assistant integrated into IntelliJ IDEA.
+                    You are AUEV (AI Unified Editor Vision), an elite security-first pair programmer integrated into IntelliJ IDEA.
                     
-                    RULES FOR CHAT:
-                    - Be professional, concise, and helpful. 
-                    - Focus on high-quality, maintainable solutions.
+                    MISSION:
+                    - Deliver clean, robust, highly maintainable, production-ready code.
+                    - Be direct, concise, and technically accurate.
                     
-                    RULES FOR CODE GENERATION:
-                    - ALWAYS return the FULL, executable code. No placeholders.
-                    - Code must follow best practices (SOLID principles, Clean Code).
-                    - COMMENTS MUST BE PROFESSIONAL:
-                      - Use standard Javadoc/KDoc formatting where appropriate.
-                      - Explain *WHY*, not just *what*.
-                      - Use imperative voice (e.g., "Calculates the hash..." not "I calculate...").
-                      - Do not use first-person pronouns ("I", "We").
+                    RULES FOR CODE:
+                    - ALWAYS output complete, working code blocks enclosed in ```language ... ``` markdown.
+                    - Follow language idiomatic best practices (SOLID, modern standard libraries).
+                    - Professional documentation only (Javadoc/KDoc/docstrings where helpful). No conversational filler in code.
                     
-                    Current Context: File Type ($fileExtension).
+                    CONTEXT:
+                    - Active File: $fileName (.$fileExtension)
                 """.trimIndent()
 
-                // I added this to inject Paranoid Mode OWASP Guidelines
                 if (isParanoidMode) {
                     systemPrompt += """
                         
                         
-                        🚨 SECURITY OVERRIDE (PARANOID MODE ACTIVE):
-                        - STRICTLY adhere to OWASP Top 10 guidelines.
-                        - PREVENT all forms of Injection (SQL, Command, XSS) by enforcing parameterized queries and strict input sanitization.
-                        - NEVER output code containing hardcoded secrets, passwords, or vulnerable cryptographic algorithms (e.g., MD5, SHA-1).
-                        - ENFORCE safe deserialization, secure authentication, and proper access controls.
-                        - WARNING: If the user requests inherently insecure code, REFUSE the request, explain the security risk, and provide a secure alternative.
+                        🚨 STRICT SECURITY OVERRIDE (PARANOID MODE ACTIVE):
+                        - OWASP Top 10 strict compliance: Block SQL Injection, Command Injection, XSS, SSRF, Broken Auth.
+                        - ZERO HARDCODED CREDENTIALS: Never suggest code containing hardcoded tokens, passwords, API keys, or private keys.
+                        - NEVER use weak cryptography (reject MD5, SHA-1, DES, ECB mode AES). Mandate SHA-256+, Argon2, bcrypt, AES-GCM.
+                        - Enforce parameterized queries, safe deserialization, and strict input validation.
+                        - If a requested pattern is unsafe, REFUSE, explain the CVE/OWASP risk, and provide the hardened alternative.
                     """.trimIndent()
                 }
 
-                val fullMessage = "Context:\n$currentCode\n\nUser Question: $userPrompt"
+                val fullMessage = buildString {
+                    if (selectedCode.isNotBlank()) {
+                        append("Selected Code snippet:\n```$fileExtension\n$selectedCode\n```\n\n")
+                    }
+                    if (currentCode.isNotBlank()) {
+                        val truncatedContext = if (currentCode.length > 8000) currentCode.take(8000) + "\n// ... [truncated for brevity]" else currentCode
+                        append("File Context ($fileName):\n```$fileExtension\n$truncatedContext\n```\n\n")
+                    }
+                    append("User Request: $userPrompt")
+                }
 
-                // Now I call the unified AI function
                 val response = callAI(systemPrompt, fullMessage)
 
                 ApplicationManager.getApplication().invokeLater {
@@ -113,42 +120,175 @@ object ChatService {
         }
     }
 
-    // --- AUDIT LOGIC ---
+    // --- QUICK ACTIONS ---
+
     fun runAudit(project: Project, onResponse: Consumer<String>) {
-        if (apiKey.isBlank()) {
-            onResponse.accept("⚠️ Set your API Key first.")
+        executeFileTask(
+            project = project,
+            taskName = "Security Audit",
+            systemPrompt = """
+                You are a Principal Security Auditor & OWASP Fellow.
+                Audit the provided code for security vulnerabilities, OWASP Top 10 risks, secret leaks, and insecure dependencies.
+                Structure your response with:
+                1. 🚨 Vulnerability Summary (Severity: Critical / High / Medium / Low)
+                2. 🔍 Analysis of issues found (with line context and exploit vectors)
+                3. 🛡️ Secure Remediated Code (Full corrected code block)
+            """.trimIndent(),
+            onResponse = onResponse
+        )
+    }
+
+    fun runExplain(project: Project, onResponse: Consumer<String>) {
+        executeFileTask(
+            project = project,
+            taskName = "Code Explanation",
+            systemPrompt = """
+                You are a Staff Software Architect.
+                Provide a clear, high-level and detailed architectural breakdown of the provided code.
+                Explain:
+                - What the code does and its primary flow
+                - Key components, data structures, and algorithmic complexity
+                - Potential edge cases or design tradeoffs
+            """.trimIndent(),
+            onResponse = onResponse
+        )
+    }
+
+    fun runRefactor(project: Project, onResponse: Consumer<String>) {
+        executeFileTask(
+            project = project,
+            taskName = "Refactoring",
+            systemPrompt = """
+                You are a Senior Refactoring Specialist.
+                Refactor the provided code to maximize readability, performance, and clean code principles without breaking existing contracts.
+                Provide:
+                1. Brief bullet points of improvements made
+                2. The complete refactored code block
+            """.trimIndent(),
+            onResponse = onResponse
+        )
+    }
+
+    fun runGenerateTests(project: Project, onResponse: Consumer<String>) {
+        executeFileTask(
+            project = project,
+            taskName = "Test Generation",
+            systemPrompt = """
+                You are a QA & Test Automation Architect.
+                Generate comprehensive unit and edge-case tests (using standard frameworks like JUnit 5, Mockito, pytest, or Vitest depending on language).
+                Cover happy path, boundaries, nullability, error handling, and security tripwires.
+                Provide complete, runnable test classes/files.
+            """.trimIndent(),
+            onResponse = onResponse
+        )
+    }
+
+    fun runSanitize(project: Project, onResponse: Consumer<String>) {
+        executeFileTask(
+            project = project,
+            taskName = "Security Sanitization",
+            systemPrompt = """
+                You are an Automated Security Sanitizer.
+                Your job is to:
+                1. Strip out or replace any hardcoded secrets/passwords with environment variable lookups.
+                2. Upgrade deprecated/weak crypto (MD5, SHA-1 -> SHA-256).
+                3. Convert raw SQL string concatenations to parameterized queries.
+                Provide the clean, secure code block.
+            """.trimIndent(),
+            onResponse = onResponse
+        )
+    }
+
+    private fun executeFileTask(
+        project: Project,
+        taskName: String,
+        systemPrompt: String,
+        onResponse: Consumer<String>
+    ) {
+        if (apiKey.isBlank() && customApiUrl.isBlank()) {
+            onResponse.accept("⚠️ Please configure your API Key or Custom Endpoint in Settings.")
             return
         }
 
-        val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return
-        val currentCode = editor.document.text
+        val editor = FileEditorManager.getInstance(project).selectedTextEditor
+        if (editor == null) {
+            onResponse.accept("⚠️ No file currently open in editor.")
+            return
+        }
+
+        val selectedText = editor.selectionModel.selectedText
+        val codeToAnalyze = if (!selectedText.isNullOrBlank()) selectedText else editor.document.text
+        val fileExtension = editor.virtualFile?.extension ?: "txt"
+        val fileName = editor.virtualFile?.name ?: "Unknown"
+
+        if (codeToAnalyze.isBlank()) {
+            onResponse.accept("⚠️ Open file or selection is empty.")
+            return
+        }
 
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                // Security Audit Prompt remains strict
-                val prompt = "You are a Senior Security Engineer. Analyze this code for vulnerabilities (OWASP Top 10). Return a concise, prioritized list of issues and recommended fixes."
-
-                // I changed this to callAI so it works with Claude too
-                val response = callAI(prompt, currentCode)
-
+                val userMsg = "File: $fileName (.$fileExtension)\n\n```$fileExtension\n$codeToAnalyze\n```"
+                val response = callAI(systemPrompt, userMsg)
                 ApplicationManager.getApplication().invokeLater {
                     onResponse.accept(response)
                 }
             } catch (e: Exception) {
-                onResponse.accept("Error: ${e.message}")
+                ApplicationManager.getApplication().invokeLater {
+                    onResponse.accept("⚠️ Error during $taskName: ${e.message}")
+                }
             }
         }
     }
 
     // --- EDITOR MANIPULATION ---
 
+    /**
+     * Smart apply: if user selected text, replace the selection.
+     * Otherwise insert at current caret position.
+     */
     fun applyCodeToCurrentFile(project: Project, code: String) {
         val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return
         val cleanCode = extractCodeBlock(code)
 
         ApplicationManager.getApplication().invokeLater {
-            WriteCommandAction.runWriteCommandAction(project, "Apply AI Code", "AUEV", {
+            WriteCommandAction.runWriteCommandAction(project, "Apply AUEV Code", "AUEV", {
+                val selectionModel = editor.selectionModel
+                if (selectionModel.hasSelection()) {
+                    val start = selectionModel.selectionStart
+                    val end = selectionModel.selectionEnd
+                    editor.document.replaceString(start, end, cleanCode)
+                    editor.caretModel.moveToOffset(start + cleanCode.length)
+                    selectionModel.removeSelection()
+                } else {
+                    val offset = editor.caretModel.offset
+                    editor.document.insertString(offset, cleanCode)
+                    editor.caretModel.moveToOffset(offset + cleanCode.length)
+                }
+            })
+        }
+    }
+
+    fun replaceEntireFile(project: Project, code: String) {
+        val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return
+        val cleanCode = extractCodeBlock(code)
+
+        ApplicationManager.getApplication().invokeLater {
+            WriteCommandAction.runWriteCommandAction(project, "Replace Entire File with AUEV Code", "AUEV", {
                 editor.document.setText(cleanCode)
+            })
+        }
+    }
+
+    fun insertCodeAtCaret(project: Project, code: String) {
+        val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return
+        val cleanCode = extractCodeBlock(code)
+
+        ApplicationManager.getApplication().invokeLater {
+            WriteCommandAction.runWriteCommandAction(project, "Insert AUEV Code at Caret", "AUEV", {
+                val offset = editor.caretModel.offset
+                editor.document.insertString(offset, cleanCode)
+                editor.caretModel.moveToOffset(offset + cleanCode.length)
             })
         }
     }
@@ -172,63 +312,64 @@ object ChatService {
     }
 
     private fun extractCodeBlock(text: String): String {
-        // Robust Regex to extract code between ```backticks```
-        val pattern = Regex("```(?:[a-zA-Z]*)?\\n([\\s\\S]*?)```")
+        val pattern = Regex("```(?:[a-zA-Z0-9_-]*)?\\r?\\n([\\s\\S]*?)```")
         val match = pattern.find(text)
 
         return if (match != null) {
             match.groupValues[1].trim()
         } else {
-            // Fallback for when the AI skips markdown (rare)
-            text.replace("```", "").trim()
+            if (text.startsWith("```") && text.endsWith("```")) {
+                text.removeSurrounding("```").trim()
+            } else {
+                text.trim()
+            }
         }
     }
 
-    // --- NETWORK ---
-    // I renamed this from callOpenAI to callAI because we are inclusive now
+    // --- NETWORK ENGINE ---
+
     private fun callAI(systemPrompt: String, userMessage: String): String {
         val provider = getProvider()
 
-        // I define the endpoints for everyone
-        val urlStr = when (provider) {
-            Provider.ANTHROPIC -> "[https://api.anthropic.com/v1/messages](https://api.anthropic.com/v1/messages)"
-            Provider.GROQ -> "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
-            Provider.OPENAI -> "[https://api.openai.com/v1/chat/completions](https://api.openai.com/v1/chat/completions)"
+        val urlStr = if (customApiUrl.isNotBlank()) {
+            customApiUrl
+        } else {
+            when (provider) {
+                Provider.ANTHROPIC -> "https://api.anthropic.com/v1/messages"
+                Provider.GROQ -> "https://api.groq.com/openai/v1/chat/completions"
+                Provider.OPENAI, Provider.CUSTOM -> "https://api.openai.com/v1/chat/completions"
+            }
         }
 
-        // I added smart model selection because sending 'gpt-4o' to Groq is like asking for a Whopper at McDonald's
         val actualModel = when {
-            // If it's Groq and the model is missing or set to the default OpenAI one, switch to Llama 3.3
             provider == Provider.GROQ && (model.isBlank() || model.startsWith("gpt")) -> "llama-3.3-70b-versatile"
-            // If it's Anthropic, default to Claude 3.5
             provider == Provider.ANTHROPIC && (model.isBlank() || model.startsWith("gpt")) -> "claude-3-5-sonnet-20240620"
-            // Default fallback
             else -> model.ifBlank { "gpt-4o" }
         }
 
-        // I used URI.create().toURL() because URL(string) is deprecated in Java 20+
         val url = URI.create(urlStr).toURL()
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.doOutput = true
+        conn.connectTimeout = 15000
+        conn.readTimeout = 45000
 
-        // Headers vary by provider
         if (provider == Provider.ANTHROPIC) {
             conn.setRequestProperty("x-api-key", apiKey)
             conn.setRequestProperty("anthropic-version", "2023-06-01")
             conn.setRequestProperty("content-type", "application/json")
         } else {
-            conn.setRequestProperty("Authorization", "Bearer $apiKey")
+            if (apiKey.isNotBlank()) {
+                conn.setRequestProperty("Authorization", "Bearer $apiKey")
+            }
             conn.setRequestProperty("Content-Type", "application/json")
         }
 
-        // JSON Body Construction
-        // Anthropic hates "system" inside messages, so I have to treat it differently
         val jsonInput = if (provider == Provider.ANTHROPIC) {
             """
             {
                 "model": "$actualModel",
-                "max_tokens": 2000,
+                "max_tokens": 4096,
                 "system": "${escapeJson(systemPrompt)}",
                 "messages": [
                     {"role": "user", "content": "${escapeJson(userMessage)}"}
@@ -243,51 +384,91 @@ object ChatService {
                     {"role": "system", "content": "${escapeJson(systemPrompt)}"},
                     {"role": "user", "content": "${escapeJson(userMessage)}"}
                 ],
-                "max_tokens": 2000
+                "max_tokens": 4096
             }
             """.trimIndent()
         }
 
         conn.outputStream.use { os -> os.write(jsonInput.toByteArray(StandardCharsets.UTF_8)) }
 
-        if (conn.responseCode != 200) {
-            val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-            throw RuntimeException("API Error (${conn.responseCode}): $err")
+        val responseCode = conn.responseCode
+        if (responseCode !in 200..299) {
+            val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "No response body"
+            val parsedError = parseErrorMessage(errBody)
+            throw RuntimeException("API Error ($responseCode): $parsedError")
         }
 
         val rawResponse = conn.inputStream.bufferedReader().use { it.readText() }
         return extractContent(rawResponse, provider)
     }
 
-    private fun escapeJson(text: String) = text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\t", "\\t")
+    private fun escapeJson(text: String): String {
+        return text.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\r", "")
+            .replace("\n", "\\n")
+            .replace("\t", "\\t")
+    }
+
+    private fun parseErrorMessage(rawError: String): String {
+        val match = Regex("\"message\"\\s*:\\s*\"([^\"]+)\"").find(rawError)
+        return match?.groupValues?.get(1) ?: rawError.take(200)
+    }
 
     private fun extractContent(json: String, provider: Provider): String {
-        // Anthropic returns "text": "...", OpenAI/Groq return "content": "..."
         val startMarker = if (provider == Provider.ANTHROPIC) "\"text\": \"" else "\"content\": \""
         val start = json.indexOf(startMarker)
-        if (start == -1) return "Error parsing response."
+        if (start == -1) {
+            val errorMarker = "\"message\": \""
+            val errStart = json.indexOf(errorMarker)
+            if (errStart != -1) {
+                return "API Message: " + unescapeJsonSubstring(json, errStart + errorMarker.length)
+            }
+            return "Unable to parse model response."
+        }
 
-        val actualStart = start + startMarker.length
+        return unescapeJsonSubstring(json, start + startMarker.length)
+    }
+
+    private fun unescapeJsonSubstring(json: String, startIdx: Int): String {
         val sb = StringBuilder()
-        var i = actualStart
+        var i = startIdx
         var escaped = false
 
         while (i < json.length) {
             val c = json[i]
             if (escaped) {
-                when(c) {
+                when (c) {
                     'n' -> sb.append('\n')
                     'r' -> sb.append('\r')
                     't' -> sb.append('\t')
                     '"' -> sb.append('"')
                     '\\' -> sb.append('\\')
+                    '/' -> sb.append('/')
+                    'u' -> {
+                        if (i + 4 < json.length) {
+                            val hex = json.substring(i + 1, i + 5)
+                            try {
+                                sb.append(hex.toInt(16).toChar())
+                                i += 4
+                            } catch (ignored: NumberFormatException) {
+                                sb.append("\\u").append(hex)
+                            }
+                        } else {
+                            sb.append("\\u")
+                        }
+                    }
                     else -> sb.append(c)
                 }
                 escaped = false
             } else {
-                if (c == '\\') escaped = true
-                else if (c == '"') break
-                else sb.append(c)
+                if (c == '\\') {
+                    escaped = true
+                } else if (c == '"') {
+                    break
+                } else {
+                    sb.append(c)
+                }
             }
             i++
         }

@@ -30,9 +30,11 @@ class AppSettingsComponent {
     private val apiKeyField = JBTextField()
     private val modelField = JBTextField()
 
+    private val customApiUrlField = JBTextField()
+
     // Checkboxes for the new powers
     private val enableGhostTextCheckbox = JBCheckBox("Enable Ghost Text (The spectral pair programmer)")
-    private val paranoidModeCheckbox = JBCheckBox("Paranoid Mode (Inject strict OWASP guidelines)")
+    private val paranoidModeCheckbox = JBCheckBox("Paranoid Mode (Inject strict OWASP guidelines & tripwires)")
 
     init {
         // Smart Auto-Detect Logic
@@ -49,9 +51,9 @@ class AppSettingsComponent {
                 if (key.startsWith("sk-ant-")) {
                     modelField.text = "claude-3-5-sonnet-20240620"
                 }
-                // 2. Groq (Llama/Mixtral - Insanely fast)
+                // 2. Groq (Llama 3.3 - Insanely fast)
                 else if (key.startsWith("gsk_")) {
-                    modelField.text = "llama3-70b-8192"
+                    modelField.text = "llama-3.3-70b-versatile"
                 }
                 // 3. OpenAI (Standard)
                 else if (key.startsWith("sk-")) {
@@ -65,6 +67,7 @@ class AppSettingsComponent {
         panel = FormBuilder.createFormBuilder()
             .addLabeledComponent(JBLabel("API Key (OpenAI / Anthropic / Groq):"), apiKeyField, 1, false)
             .addLabeledComponent(JBLabel("Model Name (Auto-Detected):"), modelField, 1, false)
+            .addLabeledComponent(JBLabel("Custom API Base URL (Ollama / OpenRouter / Local):"), customApiUrlField, 1, false)
             .addSeparator() // Make it look fancy
             .addComponent(enableGhostTextCheckbox, 1)
             .addComponent(paranoidModeCheckbox, 1)
@@ -81,6 +84,10 @@ class AppSettingsComponent {
     var modelName: String
         get() = modelField.text
         set(newText) { modelField.text = newText }
+
+    var customApiUrl: String
+        get() = customApiUrlField.text
+        set(newText) { customApiUrlField.text = newText }
 
     // Getters and Setters for the checkboxes
     var enableGhostText: Boolean

@@ -43,16 +43,18 @@ class AppSettingsConfigurable : Configurable {
         val settings = AppSettingsState.getInstance()
         return settingsComponent?.apiKey != settings.apiKey ||
                 settingsComponent?.modelName != settings.modelName ||
+                settingsComponent?.customApiUrl != settings.customApiUrl ||
                 settingsComponent?.enableGhostText != settings.enableGhostText ||
-                settingsComponent?.paranoidMode != settings.paranoidMode // <-- ADDED THIS
+                settingsComponent?.paranoidMode != settings.paranoidMode
     }
 
     override fun apply() {
         val settings = AppSettingsState.getInstance()
         settings.apiKey = settingsComponent?.apiKey ?: ""
         settings.modelName = settingsComponent?.modelName ?: "gpt-4o"
+        settings.customApiUrl = settingsComponent?.customApiUrl ?: ""
         settings.enableGhostText = settingsComponent?.enableGhostText ?: true
-        settings.paranoidMode = settingsComponent?.paranoidMode ?: false // <-- ADDED THIS
+        settings.paranoidMode = settingsComponent?.paranoidMode ?: false
 
         if (settings.enableGhostText) {
             AutoDevManager.start()
@@ -65,8 +67,9 @@ class AppSettingsConfigurable : Configurable {
         val settings = AppSettingsState.getInstance()
         settingsComponent?.apiKey = settings.apiKey
         settingsComponent?.modelName = settings.modelName
+        settingsComponent?.customApiUrl = settings.customApiUrl
         settingsComponent?.enableGhostText = settings.enableGhostText
-        settingsComponent?.paranoidMode = settings.paranoidMode // <-- ADDED THIS
+        settingsComponent?.paranoidMode = settings.paranoidMode
     }
     
     override fun disposeUIResources() {

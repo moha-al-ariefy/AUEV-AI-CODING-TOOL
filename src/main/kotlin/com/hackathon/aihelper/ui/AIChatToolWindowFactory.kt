@@ -129,35 +129,136 @@ fun ChatView(
     var inputText by remember { mutableStateOf("") }
     var selectedModel by remember { mutableStateOf(AppSettingsState.getInstance().modelName.ifBlank { "gpt-4o" }) }
     var isLoading by remember { mutableStateOf(false) }
+    var statusText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val isParanoid = AppSettingsState.getInstance().paranoidMode
 
-    // If I don't auto-scroll, the user has to scroll manually like a peasant
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF1E1E1E))) {
 
-        // --- TOP BAR (Minimalist) ---
+        // --- TOP BAR ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(40.dp)
+                .height(44.dp)
                 .background(Color(0xFF252526))
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("AUEV Assistant", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 12.sp)
-            IconButton(
-                onClick = onNavigateSettings,
-                modifier = Modifier.size(24.dp).pointerHoverIcon(PointerIcon(Cursor(Cursor.HAND_CURSOR)))
-            ) {
-                Text("⚙", fontSize = 14.sp, color = Color.Gray)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("AUEV", fontWeight = FontWeight.Bold, color = Color(0xFF2F80ED), fontSize = 13.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                // Paranoid Mode Chip
+                Surface(
+                    color = if (isParanoid) Color(0xFF1B382B) else Color(0xFF333333),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, if (isParanoid) Color(0xFF2E7D32) else Color(0xFF555555))
+                ) {
+                    Text(
+                        text = if (isParanoid) "🛡️ Paranoid" else "⚡ Standard",
+                        color = if (isParanoid) Color(0xFF81C784) else Color(0xFFAAAAAA),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Clear Chat Button
+                IconButton(
+                    onClick = {
+                        messages.clear()
+                        messages.add(ChatMessage(text = "Chat cleared. Ready for your next mission.", isUser = false))
+                    },
+                    modifier = Modifier.size(28.dp).pointerHoverIcon(PointerIcon(Cursor(Cursor.HAND_CURSOR)))
+                ) {
+                    Text("🗑️", fontSize = 12.sp)
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // Settings Button
+                IconButton(
+                    onClick = onNavigateSettings,
+                    modifier = Modifier.size(28.dp).pointerHoverIcon(PointerIcon(Cursor(Cursor.HAND_CURSOR)))
+                ) {
+                    Text("⚙", fontSize = 15.sp, color = Color.LightGray)
+                }
             }
         }
 
-        Divider(color = Color(0xFF333333))
+        // --- QUICK ACTION PILLS ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF1E1E1E))
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            QuickActionButton(label = "🛡️ Audit", tooltip = "Scan file for OWASP vulnerabilities") {
+                messages.add(ChatMessage(text = "Running Security Audit on current file...", isUser = true))
+                isLoading = true
+                statusText = "Auditing file for vulnerabilities..."
+                ChatService.runAudit(project) { response ->
+                    isLoading = false
+                    statusText = ""
+                    val isCode = response.contains("```")
+                    messages.add(ChatMessage(text = response, isUser = false, isCodeAction = isCode))
+                }
+            }
+
+            QuickActionButton(label = "💡 Explain", tooltip = "Explain selection or file") {
+                messages.add(ChatMessage(text = "Explain the current code architecture", isUser = true))
+                isLoading = true
+                statusText = "Analyzing code structure..."
+                ChatService.runExplain(project) { response ->
+                    isLoading = false
+                    statusText = ""
+                    messages.add(ChatMessage(text = response, isUser = false, isCodeAction = response.contains("```")))
+                }
+            }
+
+            QuickActionButton(label = "⚡ Refactor", tooltip = "Clean and optimize code") {
+                messages.add(ChatMessage(text = "Refactor code for clean architecture and performance", isUser = true))
+                isLoading = true
+                statusText = "Refactoring code..."
+                ChatService.runRefactor(project) { response ->
+                    isLoading = false
+                    statusText = ""
+                    messages.add(ChatMessage(text = response, isUser = false, isCodeAction = response.contains("```")))
+                }
+            }
+
+            QuickActionButton(label = "🧪 Tests", tooltip = "Generate unit tests") {
+                messages.add(ChatMessage(text = "Generate comprehensive unit tests", isUser = true))
+                isLoading = true
+                statusText = "Synthesizing test suite..."
+                ChatService.runGenerateTests(project) { response ->
+                    isLoading = false
+                    statusText = ""
+                    messages.add(ChatMessage(text = response, isUser = false, isCodeAction = response.contains("```")))
+                }
+            }
+
+            QuickActionButton(label = "🔒 Sanitize", tooltip = "Scrub secrets and upgrade crypto") {
+                messages.add(ChatMessage(text = "Sanitize secrets and upgrade weak crypto", isUser = true))
+                isLoading = true
+                statusText = "Sanitizing code..."
+                ChatService.runSanitize(project) { response ->
+                    isLoading = false
+                    statusText = ""
+                    messages.add(ChatMessage(text = response, isUser = false, isCodeAction = response.contains("```")))
+                }
+            }
+        }
+
+        Divider(color = Color(0xFF2C2C2C))
 
         // --- CHAT HISTORY ---
         LazyColumn(
@@ -171,28 +272,37 @@ fun ChatView(
                     project = project,
                     onDiscard = { messages.remove(msg) }
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
             }
             if (isLoading) {
                 item {
-                    Text(
-                        "Thinking...",
-                        color = Color.Gray,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(start = 12.dp, top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = Color(0xFF2F80ED),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (statusText.isNotBlank()) statusText else "AUEV is thinking...",
+                            color = Color(0xFFAAAAAA),
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
         }
 
-        // --- BOTTOM INPUT AREA (The Floating Card Look) ---
+        // --- BOTTOM INPUT AREA ---
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(0xFF1E1E1E))
-                .padding(12.dp)
+                .padding(10.dp)
         ) {
-            // The Input Box
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -211,26 +321,26 @@ fun ChatView(
                     cursorBrush = SolidColor(Color(0xFF2F80ED)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 24.dp, max = 200.dp) // Auto-grow like magic
+                        .heightIn(min = 28.dp, max = 200.dp)
                         .onPreviewKeyEvent {
-                            // Logic: Enter = Send, Shift+Enter = New Line
                             if (it.key == Key.Enter && it.type == KeyEventType.KeyDown) {
                                 if (it.isShiftPressed) {
-                                    false // Allow default newline (BasicTextField handles this)
+                                    false
                                 } else {
                                     if (inputText.isNotBlank()) {
                                         val prompt = inputText
                                         messages.add(ChatMessage(text = prompt, isUser = true))
                                         inputText = ""
                                         isLoading = true
+                                        statusText = "Generating answer..."
                                         ChatService.sendMessage(project, prompt) { response ->
                                             isLoading = false
-                                            // Simple heuristic: if it has curlies, it's probably code
+                                            statusText = ""
                                             val isCode = response.contains("```") || response.contains("class ") || response.contains("fun ")
                                             messages.add(ChatMessage(text = response, isUser = false, isCodeAction = isCode))
                                         }
                                     }
-                                    true // Consume event (don't make a new line)
+                                    true
                                 }
                             } else {
                                 false
@@ -246,29 +356,11 @@ fun ChatView(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: Model & Audit
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ModelPill(selectedModel) {
-                            selectedModel = it
-                            AppSettingsState.getInstance().modelName = it
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Audit Button
-                        IconTextButton(
-                            text = "🛡️ Audit",
-                            onClick = {
-                                messages.add(ChatMessage(text = "Running Security Audit...", isUser = true))
-                                isLoading = true
-                                ChatService.runAudit(project) { response ->
-                                    isLoading = false
-                                    messages.add(ChatMessage(text = response, isUser = false, isCodeAction = false))
-                                }
-                            }
-                        )
+                    ModelPill(selectedModel) {
+                        selectedModel = it
+                        AppSettingsState.getInstance().modelName = it
                     }
 
-                    // Right: Send Button
                     IconTextButton(
                         text = "Send ⏎",
                         color = Color(0xFF2F80ED),
@@ -278,8 +370,10 @@ fun ChatView(
                                 messages.add(ChatMessage(text = prompt, isUser = true))
                                 inputText = ""
                                 isLoading = true
+                                statusText = "Generating answer..."
                                 ChatService.sendMessage(project, prompt) { response ->
                                     isLoading = false
+                                    statusText = ""
                                     val isCode = response.contains("```") || response.contains("class ")
                                     messages.add(ChatMessage(text = response, isUser = false, isCodeAction = isCode))
                                 }
@@ -293,21 +387,41 @@ fun ChatView(
 }
 
 @Composable
+fun QuickActionButton(label: String, tooltip: String = "", onClick: () -> Unit) {
+    Surface(
+        color = Color(0xFF2A2D34),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color(0xFF3C404B)),
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .pointerHoverIcon(PointerIcon(Cursor(Cursor.HAND_CURSOR)))
+    ) {
+        Text(
+            text = label,
+            color = Color(0xFFE1E1E1),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
 fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -> Unit) {
     val fontSize = LocalFontSize.current.value.sp
     val isUser = message.isUser
+    var isCopied by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        // Avatar for Bot
         if (!isUser) {
             Box(
                 modifier = Modifier
                     .size(24.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF2F80ED)), // Bot Blue
+                    .background(Color(0xFF2F80ED)),
                 contentAlignment = Alignment.Center
             ) {
                 Text("AI", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -315,20 +429,18 @@ fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -
             Spacer(modifier = Modifier.width(8.dp))
         }
 
-        // Content Body
         Column(modifier = Modifier.widthIn(max = 650.dp)) {
-            // Name Tag
             if (!isUser) {
                 Text("AUEV", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
             if (message.isCodeAction) {
-                // --- CODE CARD ---
-                // I tried to make this look like the VS Code markdown block
+                val detectedLang = Regex("```([a-zA-Z0-9_-]+)").find(message.text)?.groupValues?.get(1)?.uppercase() ?: "CODE"
+
                 Card(
                     shape = RoundedCornerShape(6.dp),
-                    backgroundColor = Color(0xFF1E1E1E), // Darker than chat
+                    backgroundColor = Color(0xFF1E1E1E),
                     border = BorderStroke(1.dp, Color(0xFF333333)),
                     elevation = 0.dp
                 ) {
@@ -342,16 +454,16 @@ fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Kotlin", color = Color.Gray, fontSize = 11.sp)
+                            Text(detectedLang, color = Color.LightGray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                "Copy",
-                                color = Color.White,
+                                text = if (isCopied) "✓ Copied" else "📋 Copy",
+                                color = if (isCopied) Color(0xFF81C784) else Color.White,
                                 fontSize = 11.sp,
                                 modifier = Modifier
                                     .clickable {
-                                        // Java Swing Clipboard voodoo
                                         val selection = StringSelection(ChatService.cleanMarkdown(message.text))
                                         Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, selection)
+                                        isCopied = true
                                     }
                                     .pointerHoverIcon(PointerIcon(Cursor(Cursor.HAND_CURSOR)))
                             )
@@ -363,7 +475,7 @@ fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -
                                 text = ChatService.cleanMarkdown(message.text),
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = fontSize,
-                                color = Color(0xFFCE9178), // VS Code String color-ish
+                                color = Color(0xFFCE9178),
                                 modifier = Modifier.padding(12.dp)
                             )
                         }
@@ -371,7 +483,6 @@ fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -
                         Divider(color = Color(0xFF333333))
 
                         // Action Footer
-                        // I added logic here: If applied, show UNDO. If not, show APPLY.
                         Row(modifier = Modifier.padding(4.dp)) {
                             if (!message.isApplied.value) {
                                 Button(
@@ -379,11 +490,26 @@ fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -
                                         ChatService.applyCodeToCurrentFile(project, message.text)
                                         message.isApplied.value = true
                                     },
-                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2F80ED)), // Blue
+                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2F80ED)),
                                     modifier = Modifier.weight(1f).height(30.dp),
                                     contentPadding = PaddingValues(0.dp)
                                 ) {
-                                    Text("Apply Code", color = Color.White, fontSize = 12.sp)
+                                    Text("⚡ Apply", color = Color.White, fontSize = 11.sp)
+                                }
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                OutlinedButton(
+                                    onClick = {
+                                        ChatService.insertCodeAtCaret(project, message.text)
+                                        message.isApplied.value = true
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                    border = BorderStroke(1.dp, Color(0xFF4A4A4A)),
+                                    modifier = Modifier.weight(1f).height(30.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text("➕ Caret", fontSize = 11.sp)
                                 }
                             } else {
                                 Button(
@@ -391,17 +517,16 @@ fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -
                                         ChatService.undoLastAction(project)
                                         message.isApplied.value = false
                                     },
-                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFD32F2F)), // Red
+                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFD32F2F)),
                                     modifier = Modifier.weight(1f).height(30.dp),
                                     contentPadding = PaddingValues(0.dp)
                                 ) {
-                                    Text("Undo Changes", color = Color.White, fontSize = 12.sp)
+                                    Text("↩ Undo", color = Color.White, fontSize = 11.sp)
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
 
-                            // Reject Button
                             OutlinedButton(
                                 onClick = onDiscard,
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Gray),
@@ -409,17 +534,15 @@ fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -
                                 modifier = Modifier.weight(0.5f).height(30.dp),
                                 contentPadding = PaddingValues(0.dp)
                             ) {
-                                Text("Discard", fontSize = 12.sp)
+                                Text("✕", fontSize = 11.sp)
                             }
                         }
                     }
                 }
             } else {
-                // --- PLAIN TEXT ---
-                // User messages get a background, AI messages are transparent text
                 if (isUser) {
                     Surface(
-                        color = Color(0xFF2B313A), // Subtle Blue tint
+                        color = Color(0xFF2B313A),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.padding(bottom = 4.dp)
                     ) {
@@ -450,7 +573,7 @@ fun CopilotMessageBubble(message: ChatMessage, project: Project, onDiscard: () -
 @Composable
 fun ModelPill(selected: String, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    val items = listOf("gpt-4o", "claude-3-5-sonnet", "llama-3.3-70b-versatile")
+    val items = listOf("gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "llama-3.3-70b-versatile")
 
     Box {
         Surface(
@@ -497,30 +620,31 @@ fun IconTextButton(text: String, color: Color = Color.Gray, onClick: () -> Unit)
     )
 }
 
-// Copied this from the old file to make sure Settings still renders
 @Composable
 fun SettingsView(onBack: () -> Unit) {
     val settings = AppSettingsState.getInstance()
     var apiKey by remember { mutableStateOf(settings.apiKey) }
+    var customApiUrl by remember { mutableStateOf(settings.customApiUrl) }
     var enableGhost by remember { mutableStateOf(settings.enableGhostText) }
     var enableParanoid by remember { mutableStateOf(settings.paranoidMode) }
-    var fontSize by remember { mutableStateOf(settings.chatFontSize) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF1E1E1E))
             .padding(16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Color.White, modifier = Modifier.clickable { onBack() }.padding(end = 8.dp))
-            Text("Settings", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("AUEV Settings", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
 
         Divider(color = Color.Gray, modifier = Modifier.padding(vertical = 12.dp))
 
         // API Key
-        Text("API Key", color = Color.Gray, fontSize = 11.sp)
+        Text("API Key (OpenAI / Anthropic / Groq)", color = Color.Gray, fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(4.dp))
         BasicTextField(
             value = apiKey,
             onValueChange = { apiKey = it },
@@ -533,29 +657,48 @@ fun SettingsView(onBack: () -> Unit) {
                 .padding(8.dp)
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Custom API Base URL
+        Text("Custom API Base URL (Ollama / Local / OpenRouter)", color = Color.Gray, fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        BasicTextField(
+            value = customApiUrl,
+            onValueChange = { customApiUrl = it },
+            singleLine = true,
+            textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF252526), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFF4E5155), RoundedCornerShape(4.dp))
+                .padding(8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(18.dp))
 
         // Toggles
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = enableGhost, onCheckedChange = { enableGhost = it }, colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2F80ED)))
-            Text("Enable Ghost Text", color = Color(0xFFBBBBBB), fontSize = 13.sp)
+            Text("Enable Ghost Text (The spectral pair programmer)", color = Color(0xFFBBBBBB), fontSize = 12.sp)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = enableParanoid, onCheckedChange = { enableParanoid = it }, colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2F80ED)))
-            Text("Paranoid Mode", color = Color(0xFFBBBBBB), fontSize = 13.sp)
+            Text("Paranoid Mode (Strict OWASP tripwires & secret checks)", color = Color(0xFFBBBBBB), fontSize = 12.sp)
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Button(
             onClick = {
                 settings.apiKey = apiKey
+                settings.customApiUrl = customApiUrl
                 settings.enableGhostText = enableGhost
                 settings.paranoidMode = enableParanoid
                 if (enableGhost) com.hackathon.aihelper.AutoDevManager.start() else com.hackathon.aihelper.AutoDevManager.stop()
                 onBack()
             },
-            colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2F80ED))
+            colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2F80ED)),
+            modifier = Modifier.fillMaxWidth().height(36.dp)
         ) {
             Text("Save & Exit", color = Color.White)
         }
